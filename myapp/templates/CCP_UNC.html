@@ -1,0 +1,93 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ru">
+  {% block styles %}
+  <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">        
+      <link rel="preload" href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'" crossorigin="anonymous">
+      <link rel="preconnect" href="https://fonts.googleapis.com">
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>        
+      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css"> 
+      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tooltipster/3.3.0/css/tooltipster.min.css">                
+      
+      <link rel="stylesheet" type="text/css" href="{% static 'css/start.css' %}">
+      <link rel="icon" href="{% static 'favicon.ico' %}" type="image/x-icon">       
+  </head>
+  {% endblock %}   
+  <body>
+    {% block header %}
+    <div class="row">        
+        <div class="content-btn">
+            <p>Запуск алгоритма</p>
+            <a href="{% url 'myapp:add_UNC_CCR' %}" class="waves-effect waves-light btn">Связать</a>
+          </div>
+        <div class="content-btn">
+            <p>Ключевые слова:</p>
+            <button  class="waves-effect waves-light btn">Посмотреть</button>
+        </div>
+    </div>
+    <div class="row">
+        <div class="table_2">
+          <table class="highlight">
+            <thead>
+                <tr>
+                    <th>ОСР, ЛСР</th>
+                    <th>Наименование позиции затрат</th>
+                    <th>СР</th>
+                    <th>МР</th>
+                    <th>Обору</th>
+                    <th>Прочее</th>
+                    <th>Итого</th>
+                    <th>---</th>
+                    <th>Имя УНЦ</th>
+                    <th>Имя объекта</th>
+                    <th>U,кВ</th>
+                    <th>Техническая</th>
+                    <th>Кол-во</th>
+                    <th>ЕД</th>
+                    <th>номер</th>
+                    <th>---</th>
+                    <th>Ключ</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for record in all_CCP_UNC %}
+                    <tr>
+                        <td>{{ record.temp_table_id.local_costEstimate_id }}</td>
+                        <td>{{ record.temp_table_id.expenses_name }}</td>
+                        <td>{{ record.temp_table_id.construction_cost }}</td>
+                        <td>{{ record.temp_table_id.installation_cost }}</td>
+                        <td>{{ record.temp_table_id.equipment_cost }}</td>
+                        <td>{{ record.temp_table_id.other_cost }}</td>
+                        <td>{{ record.temp_table_id.total_cost }}</td>
+                        <td></td>
+                        <td>{{ record.temp_table_unc_id.name_unc }}</td>
+                        <td>{{ record.temp_table_unc_id.name_object }}</td>
+                        <td>{{ record.temp_table_unc_id.voltage }}</td>
+                        <td>{{ record.temp_table_unc_id.TX }}</td>
+                        <td>{{ record.temp_table_unc_id.count }}</td>
+                        <td>{{ record.temp_table_unc_id.unit }}</td>
+                        <td>{{ record.temp_table_unc_id.unc_code }}</td>
+                        <td></td>
+                        <td>{{ record.matched_keyword }}</td>
+                    </tr>       
+                {% endfor %}
+            </tbody>
+          </table>
+        </div>        
+    </div> 
+    {% endblock %}
+
+    {% block content %}
+    {% endblock %}
+
+    {% block scripts %}  
+      <!-- Подключение jQuery -->
+      <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>       
+    {% endblock %}    
+    
+  </body>
+</html>
+
