@@ -1,0 +1,55 @@
+html {
+    font-size: 13px;
+}
+
+.row {
+    display: flex;
+    flex-direction: row;
+    gap: 30px;
+    margin-bottom: 4px;
+}
+
+.content {
+    padding-left: 10px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    width: 500px;
+}
+
+.table {
+    padding-left: 10px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    width: 50%;
+    min-width: 700px;
+}
+
+.table_2 {
+    padding-left: 10px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    width: 99%;
+    min-width: 700px;
+}
+
+
+.content-btn {
+    padding-left: 10px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+}
+
+.waves-effect {
+    background-color: rgb(199, 138, 24);
+}
+
+.btn {
+    height: 22px !important;
+    line-height: 10px !important;
+    padding: 7px;
+    border-radius: 10px;
+}
+
+td, th {
+    padding: 5px 5px;
+}
