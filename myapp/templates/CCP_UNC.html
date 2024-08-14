@@ -22,10 +22,17 @@
             <p>Запуск алгоритма</p>
             <a href="{% url 'myapp:add_UNC_CCR' %}" class="waves-effect waves-light btn">Связать</a>
           </div>
-        <div class="content-btn">
+          <div class="content-btn">
             <p>Ключевые слова:</p>
-            <button  class="waves-effect waves-light btn">Посмотреть</button>
-        </div>
+            <a href="{% url 'myapp:dict_word_page' %}" class="waves-effect waves-light btn">Перейти</a>
+          </div>
+          <div class="content-btn">
+            <p>Очистить список:</p>
+            <form method="post" action="{% url 'myapp:delete_CCR_UNC' %}">
+                {% csrf_token %}
+                <button type="submit" class="waves-effect waves-light btn delete">Очистить</button>
+            </form>
+          </div>
     </div>
     <div class="row">
         <div class="table_2">
@@ -52,7 +59,12 @@
                 </tr>
             </thead>
             <tbody>
-                {% for record in all_CCP_UNC %}
+              <tbody>
+                {% for chapter_id, records in grouped_records.items %}
+                    <tr>
+                        <td colspan="8" style="font-weight: bold;">Глава {{ chapter_id }}</td>
+                    </tr>
+                    {% for record in records %}
                     <tr>
                         <td>{{ record.temp_table_id.local_costEstimate_id }}</td>
                         <td>{{ record.temp_table_id.expenses_name }}</td>
@@ -73,10 +85,74 @@
                         <td>{{ record.matched_keyword }}</td>
                     </tr>       
                 {% endfor %}
+              {% endfor %}
             </tbody>
           </table>
         </div>        
     </div> 
+    <div class="row-empty">      
+    </div> 
+    <div class="row">
+        <div class="table">
+          <table class="highlight">
+            <thead>
+                <tr>
+                    <th>ОСР, ЛСР</th>
+                    <th>Наименование позиции затрат</th>
+                    <th>СР</th>
+                    <th>МР</th>
+                    <th>Обору</th>
+                    <th>Прочее</th>
+                    <th>Итого</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for record in unlinked_records %}
+                    <tr>
+                        <td>{{ record.local_costEstimate_id }}</td>
+                        <td>{{ record.expenses_name }}</td>
+                        <td>{{ record.construction_cost }}</td>
+                        <td>{{ record.installation_cost }}</td>
+                        <td>{{ record.equipment_cost }}</td>
+                        <td>{{ record.other_cost }}</td>
+                        <td>{{ record.total_cost }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div class="table">
+          <table class="highlight">
+            <thead>
+                <tr>
+                    <th>id</th>
+                    <th>Имя УНЦ</th>
+                    <th>Имя объекта</th>
+                    <th>U,кВ</th>
+                    <th>Техническая</th>
+                    <th>Кол-во</th>
+                    <th>ЕД</th>
+                    <th>номер</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for record in unlinked_temp_UNC_records %}
+                  <tr>
+                      <td>{{ record.project_id }}</td>
+                      <td>{{ record.name_unc }}</td>
+                      <td>{{ record.name_object }}</td>
+                      <td>{{ record.voltage }}</td>
+                      <td>{{ record.TX }}</td>
+                      <td>{{ record.count }}</td>
+                      <td>{{ record.unit }}</td>
+                      <td>{{ record.unc_code }}</td>
+                  </tr>
+                {% endfor %}
+            </tbody>
+          </table>
+        </div> 
+      </div>  
+
     {% endblock %}
 
     {% block content %}
@@ -90,4 +166,3 @@
     
   </body>
 </html>
-

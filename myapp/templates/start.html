@@ -12,6 +12,7 @@
       <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tooltipster/3.3.0/css/tooltipster.min.css">                
       
       <link rel="stylesheet" type="text/css" href="{% static 'css/start.css' %}">
+      <link rel="stylesheet" type="text/css" href="{% static 'css/color.css' %}">
       <link rel="icon" href="{% static 'favicon.ico' %}" type="image/x-icon">       
   </head>
   {% endblock %}   
@@ -54,13 +55,20 @@
         </div>
         <div class="content-btn">
           <p>Ключевые слова:</p>
-          <button  class="waves-effect waves-light btn">Посмотреть</button>
+          <a href="{% url 'myapp:dict_word_page' %}" class="waves-effect waves-light btn">Перейти</a>
         </div>
         <div class="content-btn">
           <p>Объекты аналоги:</p>
           <button  class="waves-effect waves-light btn">Посмотреть</button>
         </div>
-      </div>
+        <div class="content-btn">
+          <p>Очистить список:</p>
+          <form method="post" action="{% url 'myapp:delete_temp' %}">
+              {% csrf_token %}
+              <button type="submit" class="waves-effect waves-light btn delete">Очистить</button>
+          </form>
+        </div>
+      </div>  
       <div class="row">
         <div class="table">
           <table class="highlight">
@@ -147,6 +155,15 @@
             });
         });
         </script>      
+        {% if messages %}
+          <ul class="message-list">
+            {% for message in messages %}
+              <li class="{% if message.tags %} {{ message.tags }} {% endif %}">
+                {{ message }}
+              </li>
+            {% endfor %}
+          </ul>
+        {% endif %}
     {% endblock %}    
     
   </body>

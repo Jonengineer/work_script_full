@@ -1,0 +1,81 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ru">
+  {% block styles %}
+  <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">        
+      <link rel="preload" href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'" crossorigin="anonymous">
+      <link rel="preconnect" href="https://fonts.googleapis.com">
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>        
+      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css"> 
+      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tooltipster/3.3.0/css/tooltipster.min.css">                
+      
+      <link rel="stylesheet" type="text/css" href="{% static 'css/start.css' %}">
+      <link rel="icon" href="{% static 'favicon.ico' %}" type="image/x-icon">       
+  </head>
+  {% endblock %}   
+  <body>
+    {% block header %}
+    <div class="row">
+      <div class="content-btn-dict">
+        <form method="post" action="{% url 'myapp:add_expense_to_epc' %}">
+            {% csrf_token %}
+            <div class="input-field">
+                <label for="expense_name">Название позиции сметного расчета:</label>
+                <input type="text" id="expense_name" name="expense_name" required>
+            </div>
+            <div class="input-field">
+                <label for="expense_epc">Ключевого слова технической характеристики:</label>
+                <input type="text" id="expense_epc" name="expense_epc" required>
+            </div>
+            <button type="submit" class="waves-effect waves-light btn">Добавить</button>
+        </form>
+      </div>
+      <div class="content-btn-dict">
+        <form method="post" action="{% url 'myapp:delete_expense_to_epc' %}">
+            {% csrf_token %}
+            <div class="input-field">
+                <label for="expense_id">ID ключевого слова:</label>
+                <input type="number" id="expense_id" name="expense_id" required>
+            </div>
+            <button type="submit" class="waves-effect waves-light btn delete">Удалить</button>
+        </form>
+      </div>
+    </div>
+    <div class="row">
+        <div class="table_2">
+          <table class="highlight">
+            <thead>
+                <tr>
+                    <th>№ п\п</th>
+                    <th>Наименование позиции РПС</th>
+                    <th>Ключевое слово технической характеристики</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for record in dict_word %}
+                    <tr>
+                        <td>{{ record.expenses_to_epc_map_id }}</td>
+                        <td>{{ record.expenses_to_epc_map_name }}</td>
+                        <td>{{ record.expenses_to_epc_map_epc }}</td>        
+                    </tr>       
+                {% endfor %}
+            </tbody>
+          </table>
+        </div>        
+    </div> 
+    {% endblock %}
+
+    {% block content %}
+    {% endblock %}
+
+    {% block scripts %}  
+      <!-- Подключение jQuery -->
+      <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>       
+    {% endblock %}    
+    
+  </body>
+</html>
+

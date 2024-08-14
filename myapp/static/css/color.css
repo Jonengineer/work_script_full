@@ -1,0 +1,20 @@
+/* Основные цвета */
+:root {
+    --green-color: #6F947F; 
+    --yellow-color: #b7b333; 
+    --green-color-opacity: RGBA(111, 148, 127, 0.01); 
+    --green-color-moreopacity: RGBA(111, 148, 127, 0.7); 
+    --background-color: #ECE7D6;
+    --background-color-opacity: RGBA(236, 231, 214, 0.8);
+    --background-color-moreopacity: RGBA(236, 231, 214, 0.4);
+    --grey-color: #9cabae; 
+    --braun-color: #3C2C13; 
+    --red-color: rgb(244, 67, 54, 0.99);
+    --red-color_delete: #F44336;
+    --color-text-card: #000000;
+    --color-text-main: white;
+    --color-text-experiment: black;
+    --active-green-color: #97bda7; 
+    --background-color-undermap: RGB(170, 161, 156, 0.37);   
+    --service-color: rgb(236, 231, 214) 94%;   
+  }

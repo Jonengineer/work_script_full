@@ -82,7 +82,6 @@ class DictSecChapter(models.Model):
     class Meta:
         db_table = 'dict_sec_chapter'
 
-
 class TempTable(models.Model):
     id = models.AutoField(primary_key=True)
     project_id = models.TextField()
@@ -92,15 +91,14 @@ class TempTable(models.Model):
     expenses_name = models.TextField()
     quarter = models.TextField()    
     # Поля для различных типов стоимости
-    construction_cost = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, verbose_name="Стоимость строительных работ")
-    installation_cost = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, verbose_name="Стоимость монтажных работ")
-    equipment_cost = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, verbose_name="Стоимость оборудования, мебели, инвентаря")
-    other_cost = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, verbose_name="Стоимость прочих затрат")
-    total_cost = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, verbose_name="Общая сметная стоимость")
+    construction_cost = models.TextField(null=True, blank=True, verbose_name="Стоимость строительных работ")
+    installation_cost = models.TextField(null=True, blank=True, verbose_name="Стоимость монтажных работ")
+    equipment_cost = models.TextField(null=True, blank=True, verbose_name="Стоимость оборудования, мебели, инвентаря")
+    other_cost = models.TextField(null=True, blank=True, verbose_name="Стоимость прочих затрат")
+    total_cost = models.TextField(null=True, blank=True, verbose_name="Общая сметная стоимость")
 
     class Meta:
         db_table = 'temp_table'
-
 
 class TempTableUNC(models.Model):
     id = models.AutoField(primary_key=True)
@@ -115,7 +113,6 @@ class TempTableUNC(models.Model):
     
     class Meta:
         db_table = 'temp_table_unc'       
-
 
 class TempTableССКUNC(models.Model):
     id = models.AutoField(primary_key=True)

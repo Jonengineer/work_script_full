@@ -9,6 +9,43 @@ html {
     margin-bottom: 4px;
 }
 
+.row-empty {
+    background-color:#977f2f;
+    height: 20px;
+    width: 100%;
+}
+
+
+/* Стиль для каждого контейнера формы */
+.content-btn-dict {
+    flex: 1 1 45%; /* Элементы будут занимать примерно половину ширины родительского контейнера */
+    box-sizing: border-box; /* Учитывает padding и border при расчете ширины */
+    padding: 10px; /* Отступы вокруг формы */
+}
+
+/* Стиль для формы */
+form {
+    display: flex;
+    flex-direction: column;
+}
+
+/* Стиль для полей ввода */
+.input-field {
+    margin: 1px;
+}
+
+label {
+    display: block;
+    margin: 1px;
+}
+
+input {
+    width: 100%; /* Поля ввода занимают всю ширину контейнера */
+    padding: 4px; /* Отступы внутри полей ввода */
+    box-sizing: border-box; /* Учитывает padding и border при расчете ширины */
+}
+
+
 .content {
     padding-left: 10px;
     padding-top: 10px;
@@ -36,20 +73,57 @@ html {
 .content-btn {
     padding-left: 10px;
     padding-top: 10px;
-    padding-bottom: 10px;
+    padding-bottom: 10px;    
 }
 
 .waves-effect {
     background-color: rgb(199, 138, 24);
 }
 
+
 .btn {
     height: 22px !important;
     line-height: 10px !important;
     padding: 7px;
     border-radius: 10px;
+    max-width: 100px;
 }
+
+.delete {
+    background-color: rgb(228, 53, 56);
+}
+
 
 td, th {
     padding: 5px 5px;
 }
+
+/* УВЕДОМЛЕНИЯ ТОСТЫ */
+.message-list {
+    list-style-type: none; /* Убираем стандартные маркеры списка */
+    padding: 0;
+    margin: 0;
+  }
+  
+  .message-list li {
+    padding: 10px;
+    margin-bottom: 5px;
+    border-radius: 5px;
+  }
+  
+  /* Пример стилей для разных типов сообщений */
+  .message-list li.error {
+    background-color: #f8d7da;
+    color: #721c24;
+  }
+  
+  .message-list li.success {
+    background-color: #d4edda;
+    color: #155724;
+  }
+
+  .message-list li.warning {
+    background-color: #c2ad79;
+    color: #000000;
+  }
+  
