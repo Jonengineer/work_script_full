@@ -22,7 +22,7 @@
         <form method="post" action="{% url 'myapp:add_expense_to_epc' %}">
             {% csrf_token %}
             <div class="input-field">
-                <label for="expense_name">Ключевое слов из смет:</label>
+                <label for="expense_name">Ключевое слово для позиции из сметной документации:</label>
                 <input type="text" id="expense_name" name="expense_name" required>
             </div>
             <div class="input-field">
