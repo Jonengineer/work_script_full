@@ -255,7 +255,8 @@ def add_CCR(request):
                         "Составлен в ценах по состоянию на ",
                         "Cоставлен в ценах по состоянию на  ",
                         "Составлен в базисном (текущем) уровне цен",
-                        "Составлена в ценах по состоянию на"
+                        "Составлена в ценах по состоянию на",
+                        "Составлена в текущих ценах на"
                     ]
 
                     for value in row_values:
@@ -592,13 +593,22 @@ def add_UNC_CCR(request):
                     # print(f"keyword: {keyword}")
                     if keyword in cleaned_expenses_name:
                         print(f"Найдено соответствие: {temp_record}")
-                        # Шаг 4: Сохранение результата в TempTableССКUNC
-                        TempTableССКUNC.objects.create(
+
+                        # Проверка на наличие дубликатов
+                        existing_record = TempTableССКUNC.objects.filter(
                             temp_table_id=temp_record,
                             temp_table_unc_id=unc_record,
-                            matched_keyword=keyword,
-                            additional_info=f"Связь по ключевому слову: {keyword}"
-                        )
+                        ).exists()
+                        print(f"existing_record: {existing_record}")
+
+                        # Шаг 4: Сохранение результата в TempTableССКUNC
+                        if not existing_record:
+                            TempTableССКUNC.objects.create(
+                                temp_table_id=temp_record,
+                                temp_table_unc_id=unc_record,
+                                matched_keyword=keyword,
+                                additional_info=f"Связь по ключевому слову: {keyword}"
+                            )
     except Exception as e:
         print(f"Ошибка при сохранении результатов: {e}")
         messages.error(request, f"Ошибка при сохранении результатов: {e}")

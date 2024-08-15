@@ -70,6 +70,7 @@ input {
 }
 
 
+
 .content-btn {
     padding-left: 10px;
     padding-top: 10px;
@@ -86,7 +87,7 @@ input {
     line-height: 10px !important;
     padding: 7px;
     border-radius: 10px;
-    max-width: 100px;
+    max-width: 110px;
 }
 
 .delete {

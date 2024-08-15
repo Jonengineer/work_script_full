@@ -17,22 +17,25 @@
   {% endblock %}   
   <body>
     {% block header %}
-    <div class="row">        
+    <div class="row">
         <div class="content-btn">
-            <p>Запуск алгоритма</p>
-            <a href="{% url 'myapp:add_UNC_CCR' %}" class="waves-effect waves-light btn">Связать</a>
-          </div>
-          <div class="content-btn">
-            <p>Ключевые слова:</p>
-            <a href="{% url 'myapp:dict_word_page' %}" class="waves-effect waves-light btn">Перейти</a>
-          </div>
-          <div class="content-btn">
-            <p>Очистить список:</p>
-            <form method="post" action="{% url 'myapp:delete_CCR_UNC' %}">
-                {% csrf_token %}
-                <button type="submit" class="waves-effect waves-light btn delete">Очистить</button>
-            </form>
-          </div>
+          <a href="{% url 'myapp:start' %}" class="waves-effect waves-light btn">Назад</a>
+        </div>        
+        <div class="content-btn">
+          <p>Запуск алгоритма</p>
+          <a href="{% url 'myapp:add_UNC_CCR' %}" class="waves-effect waves-light btn">Связать</a>
+        </div>
+        <div class="content-btn">
+          <p>Ключевые слова:</p>
+          <a href="{% url 'myapp:dict_word_page' %}" class="waves-effect waves-light btn">Перейти</a>
+        </div>
+        <div class="content-btn">
+          <p>Очистить список:</p>
+          <form method="post" action="{% url 'myapp:delete_CCR_UNC' %}">
+              {% csrf_token %}
+              <button type="submit" class="waves-effect waves-light btn delete">Очистить</button>
+          </form>
+        </div>
     </div>
     <div class="row">
         <div class="table_2">
