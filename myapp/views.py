@@ -152,14 +152,13 @@ def start_page(request):
 
 # Страница связывания
 def CCP_UNC_page(request):
-
     all_CCP_UNC = TempTableССКUNC.objects.all()
 
     # Получаем все записи из TempTable и TempTableUNC
     all_temp_records = TempTable.objects.all()
     all_temp_UNC_records = TempTableUNC.objects.all()
 
-    # Группируем записи по главам
+    # Группируем записи из TempTableССКUNC по главам
     grouped_records = defaultdict(list)
     for record in all_CCP_UNC:
         grouped_records[record.temp_table_id.chapter_id.dict_sec_chapter_id].append(record)
@@ -175,12 +174,20 @@ def CCP_UNC_page(request):
     unlinked_temp_records = all_temp_records.exclude(id__in=linked_temp_records_ids)
     unlinked_temp_UNC_records = all_temp_UNC_records.exclude(id__in=linked_temp_UNC_records_ids)
 
+    # Группируем несвязанные TempTable записи по главам
+    unlinked_grouped_records = defaultdict(list)
+    for record in unlinked_temp_records:
+        unlinked_grouped_records[record.chapter_id.dict_sec_chapter_id].append(record)
+
+    # Сортировка по главам для несвязанных записей
+    sorted_unlinked_grouped_records = OrderedDict(sorted(unlinked_grouped_records.items()))
+
     context = {
         'grouped_records': sorted_grouped_records,
-        'unlinked_records': unlinked_temp_records,
+        'unlinked_grouped_records': sorted_unlinked_grouped_records,
         'unlinked_temp_UNC_records': unlinked_temp_UNC_records,
     }
-
+    print(sorted_unlinked_grouped_records)
     return render(request, 'CCP_UNC.html', context)
 
 # Страница ключевых слов
