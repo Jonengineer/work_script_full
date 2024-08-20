@@ -382,7 +382,12 @@ def add_UNC(request):
         uploaded_file = request.FILES['UNC']
 
         # Чтение Excel-файла в DataFrame
-        df = pd.read_excel(uploaded_file, sheet_name=0, engine='openpyxl')
+        try:
+            df = pd.read_excel(uploaded_file, sheet_name=0, engine='openpyxl')
+        except Exception as e:
+            messages.error(request, f"Ошибка при чтении файла: {e}")
+            return redirect('myapp:start')
+
         rows_to_insert = []                
         recording = False  # Переменная для начала записи
         row_type = None
@@ -396,27 +401,29 @@ def add_UNC(request):
                         row_type = 1  # Тип №1
                     elif "Наименование УНЦ" in str(row.iloc[5]):
                         row_type = 2  # Тип №2
+                    else:
+                        messages.warning(request, f"Не удалось определить тип строки на строке {index + 1}")
 
                 print(f"Тип формы: {row_type}")
+                
                 # Ожидаемая последовательность от 1 до 16
                 expected_sequence = list(map(str, range(1, 8)))
+
                 # Проверка на строку с нумерацией столбцов от 1 до 16
                 if not recording:
-                    # Проверка на пустую строку
                     if row.isnull().all():
                         continue  # Пропускаем пустые строки
-                    # Проверяем, что первые 16 ячеек содержат именно последовательность чисел от 1 до 16
+                    
                     actual_sequence = [str(cell).strip() for cell in row[:8] if pd.notna(cell)]
                     if actual_sequence == expected_sequence:
                         recording = True
-                        print(f"Начало записи данных с индекса строки: {index}")
+                        messages.info(request, f"Начало записи данных с индекса строки: {index + 1}")
                         continue
-                # Используем регулярное выражение для поиска ключевой строки
+                
                 if isinstance(row.iloc[4], str) and re.search(r'Итого', str(row.iloc[4]).strip(), re.IGNORECASE):
-                    print(f"Условие срабатывает для записи в базу")
-                    # Если строка соответствует шаблону "Итого", сохраняем все накопленные данные в базу
+                    messages.info(request, f"Условие срабатывает для записи в базу на строке {index + 1}")
+                    
                     if rows_to_insert:
-                        print(f"Начинаем записывать в базу")
                         try:
                             for r in rows_to_insert:
                                 TempTableUNC.objects.create(
@@ -429,17 +436,15 @@ def add_UNC(request):
                                     unit=r['unit'],
                                     unc_code=r['unc_code']
                                 )
-                            print(f"Данные записаны в БД для {len(rows_to_insert)} строк.")
+                            messages.success(request, f"Данные успешно записаны в БД для {len(rows_to_insert)} строк.")
                             rows_to_insert = []  # Очищаем список после записи
                         except Exception as e:
-                            print(f"Ошибка при сохранении данных в БД: {e}")
+                            messages.error(request, f"Ошибка при сохранении данных в БД на строке {index + 1}: {e}")
                     continue  # Переходим к следующей строке
-                if recording:   
-                    print(f"Создаем словарь")
+                
+                if recording:
                     try:
-                        # Создаем словарь для каждой строки затрат
                         if row_type == 1:
-                            # Используем нижний вариант
                             row_data = {
                                 'project_id': row.iloc[3], # id проекта
                                 'name_unc': row.iloc[4], # Имя УНЦ
@@ -451,7 +456,6 @@ def add_UNC(request):
                                 'unc_code': row.iloc[17], # номер расценки
                             }
                         elif row_type == 2:
-                            # Используем верхний вариант
                             row_data = {
                                 'project_id': row.iloc[3], # id проекта
                                 'name_unc': row.iloc[5], # Имя УНЦ
@@ -464,16 +468,18 @@ def add_UNC(request):
                             }
 
                         rows_to_insert.append(row_data)
-                        print(f"Нашли нужную строку: {rows_to_insert}")
+                        messages.info(request, f"Найдена и добавлена строка данных на строке {index + 1}")
                     except Exception as e:
-                        print(f"Ошибка при сохранении данных в БД: {e}")
+                        messages.error(request, f"Ошибка при обработке строки {index + 1}: {e}")
 
         except Exception as e:
-            print(f"Ошибка на строке {index}: {e}")
+            messages.error(request, f"Общая ошибка на строке {index + 1}: {e}")
+            return redirect('myapp:start')
+        
         messages.success(request, "Данные успешно загружены в базу данных.")
         return redirect('myapp:start')
     else:
-        print(f'Файла нет')
+        messages.error(request, 'Файла нет или метод запроса не POST')
         return redirect('myapp:start')
     
 # Связывание
