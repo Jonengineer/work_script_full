@@ -1,11 +1,12 @@
 html {
-    font-size: 13px;
+    font-size: 12px;
 }
 
 .row {
     display: flex;
     flex-direction: row;
-    gap: 30px;
+    justify-content: space-between;
+    gap: 10px;
     margin-bottom: 4px;
 }
 
@@ -15,12 +16,17 @@ html {
     width: 100%;
 }
 
+.row-table {
+    width: 50%;
+    overflow-x: auto;
+}
+
 
 /* Стиль для каждого контейнера формы */
 .content-btn-dict {
-    flex: 1 1 45%; /* Элементы будут занимать примерно половину ширины родительского контейнера */
-    box-sizing: border-box; /* Учитывает padding и border при расчете ширины */
-    padding: 10px; /* Отступы вокруг формы */
+    flex: 1 1 45%; 
+    box-sizing: border-box; 
+    padding: 10px; 
 }
 
 /* Стиль для формы */
@@ -57,8 +63,6 @@ input {
     padding-left: 10px;
     padding-top: 10px;
     padding-bottom: 10px;
-    width: 50%;
-    min-width: 700px;
 }
 
 .table_2 {
@@ -68,7 +72,6 @@ input {
     width: 99%;
     min-width: 700px;
 }
-
 
 .content-btn {
     padding-left: 10px;
@@ -86,7 +89,7 @@ input {
     line-height: 10px !important;
     padding: 7px;
     border-radius: 10px;
-    max-width: 100px;
+    max-width: 110px;
 }
 
 .delete {
