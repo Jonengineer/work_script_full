@@ -40,6 +40,29 @@ def format_quarter_info(quarter_str):
         # Приведение к формату 'IV квартал 2018 г.'
         return f'{quarter} квартал {year} г.'
     
+    # Новый паттерн для строки: "1 кв 2019 года с НДС"
+    pattern_simple_quarter = r'(\d+|IV|I|II|III|IV)\s*кв(?:квартал)?\s*(\d{4})\s*г(?:од|года)?'
+    match_simple_quarter = re.search(pattern_simple_quarter, quarter_str, re.IGNORECASE)
+    
+    if match_simple_quarter:
+        quarter = match_simple_quarter.group(1)
+        year = match_simple_quarter.group(2)
+        # Приведение к формату 'I квартал 2019 г.'
+        return f'{quarter} квартал {year} г.'
+    
+    pattern = r'(\d{1,2})\s*(кв\w*|квартал)\s*(\d{4})\s*г(?:од|года)?|\b(\d{4})\s*г(?:од|года)?\s*с\s*пересчетом\s*в\s*текущие\s*цены\s*(\d{1,2}|IV|I|II|III|IV)\s*(квартал)\s*(\d{4})\s*г(?:од|года)?'
+    match = re.search(pattern, quarter_str, re.IGNORECASE)
+
+    if match:
+        if match.group(1) and match.group(3):
+            quarter = match.group(1)
+            year = match.group(3)
+            return f'{quarter} квартал {year} г.'
+        elif match.group(5) and match.group(7):
+            quarter = match.group(5)
+            year = match.group(7)
+            return f'{quarter} квартал {year} г.'
+    
     return None
 
 # Удаляем пробелы и заменяем запятую на точку
@@ -251,36 +274,41 @@ def add_CCR(request):
 
                 # Проверка на квартал
                 if quarter_row is None:  # Проверка, если quarter_row еще не найден
-                    key_phrases_quarter = [
-                        "Составлен в ценах по состоянию на ",
-                        "Cоставлен в ценах по состоянию на  ",
-                        "Составлен в базисном (текущем) уровне цен",
-                        "Составлена в ценах по состоянию на",
-                        "Составлена в текущих ценах на"
-                    ]
-
-                    for value in row_values:
-                        if isinstance(value, str):
-                            cleaned_value = value.strip()
-                            if any(phrase in cleaned_value for phrase in key_phrases_quarter):
+                    key_phrases_quarter = ["Составлен"]
+                    print(f"Самая первая {row_values}")
+                    
+                    # Пробуем найти квартал в каждой строке по отдельности
+                    for i in range(0, len(row_values)):
+                        print(f"Первая проверка {i}")
+                        if isinstance(row_values[i], str):
+                            cleaned_value = re.sub(r'\s+', ' ', str(row_values[i]).strip().lower())
+                            print(f"Перед условием {cleaned_value}")
+                            if any(re.search(phrase.lower(), cleaned_value) for phrase in key_phrases_quarter):
+                                print(f"Ищем квартал {cleaned_value}")
                                 quarter_row = format_quarter_info(cleaned_value)
-                                if quarter_row is None:
-                                    combined_str = " ".join([str(rv) for rv in row_values if isinstance(rv, str)]).strip()
-                                    quarter_row = format_quarter_info(combined_str)
-
-                                if quarter_row is None:
-                                    messages.error(request, f"Не найден квартал!")
-                                else:
+                                if quarter_row:
                                     messages.success(request, f"Найден квартал: {quarter_row}")
-                                break
+                                    break  # Если нашли квартал, выходим из цикла
+
+                    # Если не нашли, объединяем все строки и ищем в объединенной строке
+                    if quarter_row is None:
+                        combined_str = " ".join([str(rv) for rv in row_values if isinstance(rv, str)]).strip()
+                        print(f"Объединенная строка: {combined_str}")
+                        quarter_row = format_quarter_info(combined_str)
+
+                        if quarter_row is None:
+                            messages.error(request, f"Не найден квартал!")
+                        else:
+                            messages.success(request, f"Найден квартал: {quarter_row}")
 
                 # Проверка на финальную строку
                 key_phrases = ["Итого по"]
                 for i in range(0, len(row_values)):
                     if isinstance(row_values[i], str):
-                        cleaned_value = re.sub(r'\s+', ' ', row_values[i].strip().lower())  # Убираем лишние пробелы
+                        cleaned_value = re.sub(r'\s+', ' ', str(row_values[i]).strip().lower())  
                         if any(re.search(phrase.lower(), cleaned_value) for phrase in key_phrases) and "главе" in cleaned_value:
-                            target_column = cleaned_value  # Присваиваем найденное значение
+                            print(f"инальная строка")
+                            target_column = cleaned_value  
                             messages.success(request, f"Финальная строка найдена: {target_column}")
                             break
 
@@ -307,6 +335,7 @@ def add_CCR(request):
 
             # Сохранение данных после последней главы
             if rows_to_insert:
+                print(f"Сохраняем данные")
                 for r in rows_to_insert:
                     TempTable.objects.create(
                         chapter_id=previous_chapter_instance,
@@ -340,136 +369,12 @@ def add_CCR(request):
             return redirect('myapp:start')
 
         except Exception as e:
-            messages.error(request, f"Ошибка при обработке файла: {e}")
+            messages.error(request, f"Ошибка при обработке файла: в строке {index}  {e}")
             return redirect('myapp:start')
     else:
         messages.error(request, "Файл не загружен.")
         return redirect('myapp:start')
 
-
-# Импорт CCR
-def add_CCR_2(request):
-    if request.method == 'POST' and request.FILES.get('CCR'):
-        uploaded_file = request.FILES['CCR']
-
-        try:
-            # Чтение Excel-файла в DataFrame
-            df = pd.read_excel(uploaded_file, sheet_name=0, engine='openpyxl')
-            current_chapter = None
-            quarter_row = None
-            target_column = None
-            rows_to_insert = []            
-
-            # Проход по строкам DataFrame и сохранение данных в базу
-            for index, row in df.iterrows():
-
-                row_values = row.tolist() 
-                key_phrases_chapter = ["Глава"]
-
-                # Проверка на наличие главы
-                for i in range(0, len(row)):
-                    if isinstance(row.iloc[i], str) and any(phrase in row.iloc[i].strip() for phrase in key_phrases_chapter):
-                        match = re.search(r'\bГлава\s+(\d+)', row.iloc[i])
-                        if match:
-                            current_chapter = match.group(1)  # Извлекаем номер главы
-                            try:
-                                chapter_instance = DictSecChapter.objects.get(dict_sec_chapter_id=current_chapter)                                
-                                messages.success(request, f"Найден номер главы {current_chapter}")
-                            except DictSecChapter.DoesNotExist:                                
-                                messages.error(request, f"Глава с ID {current_chapter} не найдена в базе данных.")
-                        continue
-
-                # Проверка на квартал
-                if quarter_row is None:  # Проверка, если quarter_row еще не найден
-                    key_phrases_quarter = [
-                        "Составлен в ценах по состоянию на ",
-                        "Cоставлен в ценах по состоянию на  ",
-                        "Составлен в базисном (текущем) уровне цен",
-                        "Составлена в ценах по состоянию на"
-                    ]
-
-                    for i in range(len(row_values)):
-                        value = row_values[i]
-                        if isinstance(value, str):
-                            cleaned_value = value.strip()
-                            if any(phrase in cleaned_value for phrase in key_phrases_quarter):                                
-                                quarter_row = format_quarter_info(cleaned_value)
-                                if quarter_row is None:
-                                    combined_str = " ".join([row_values[i] for i in range(len(row_values)) if isinstance(row_values[i], str)]).strip()
-                                    quarter_row = format_quarter_info(combined_str)
-
-                                if quarter_row is None:
-                                    messages.error(request, f"Не найден квартал!")
-                                else:   
-                                    messages.success(request, f"Найден квартал такой: {quarter_row}")
-                                if quarter_row:                                
-                                    break
-
-                key_phrases = ["Итого по"]                
-                for i in range(0, len(row)):
-                    try:
-                        if isinstance(row.iloc[i], str):
-                            cleaned_value = re.sub(r'\s+', ' ', row.iloc[i].strip().lower())  # Убираем лишние пробелы
-                            if any(re.search(phrase.lower(), cleaned_value) for phrase in key_phrases) and "главе" in cleaned_value:
-                                target_column = cleaned_value  # Присваиваем найденное значение                                                            
-                                messages.success(request, f"Финальная строка найдена: {target_column}")
-                                break  # Прерываем цикл, если нашли нужное слово                            
-                            else:
-                                messages.error(request, f"Финальная строка не найдена!")
-                                break
-                    except Exception as e:
-                        error_message = f"Ошибка при обработке строки {i}: {str(e)}"
-                        messages.error(request, error_message)  
-
-                print(f"target_column: {target_column}")
-                if target_column and rows_to_insert:
-                    # Записываем данные в базу только один раз
-                    for r in rows_to_insert:
-                        TempTable.objects.create(
-                            chapter_id=chapter_instance,
-                            quarter=quarter_row,
-                            object_costEstimate_id=r['object_costEstimate_id'],
-                            local_costEstimate_id=r['local_costEstimate_id'],
-                            expenses_name=r['expenses_name'],
-                            construction_cost=clean_decimal_value(r['construction_cost']),
-                            installation_cost=clean_decimal_value(r['installation_cost']),
-                            equipment_cost=clean_decimal_value(r['equipment_cost']),
-                            other_cost=clean_decimal_value(r['other_cost']),
-                            total_cost=clean_decimal_value(r['total_cost'])
-                        )
-                    # Очищаем список после записи
-                    rows_to_insert = []
-                    continue
-
-                # Если текущая строка относится к главе
-                if current_chapter is not None:
-                    try:
-                        row_data = {
-                            'chapter_id': current_chapter,
-                            'object_costEstimate_id': row_values[1],
-                            'local_costEstimate_id': row_values[1],
-                            'expenses_name': row_values[2],
-                            'construction_cost': row_values[3],
-                            'installation_cost': row_values[4],
-                            'equipment_cost': row_values[5],
-                            'other_cost': row_values[6],
-                            'total_cost': row_values[7],
-                        }                        
-                        rows_to_insert.append(row_data)
-
-                    except Exception as e:
-                        messages.error(request, f"Ошибка в строке {index}: {e}")
-
-            return redirect('myapp:start')
-
-        except Exception as e:
-            print(f"Ошибка при обработке файла: {e}")
-            messages.error(request, f"Ошибка при обработке файла: {e}")
-            return redirect('myapp:start')
-    else:
-        print('Файла нет')
-        messages.error(request, "Файл не загружен.")
-        return redirect('myapp:start')
 
 # Импорт UNC
 def add_UNC(request):
@@ -480,34 +385,38 @@ def add_UNC(request):
         df = pd.read_excel(uploaded_file, sheet_name=0, engine='openpyxl')
         rows_to_insert = []                
         recording = False  # Переменная для начала записи
+        row_type = None
 
         try:
             # Проход по строкам DataFrame и сохранение данных в базу
             for index, row in df.iterrows():
 
-                # Ожидаемая последовательность от 1 до 16
-                expected_sequence = list(map(str, range(1, 16)))
+                if row_type is None:
+                    if "Наименование УНЦ" in str(row.iloc[4]):
+                        row_type = 1  # Тип №1
+                    elif "Наименование УНЦ" in str(row.iloc[5]):
+                        row_type = 2  # Тип №2
 
+                print(f"Тип формы: {row_type}")
+                # Ожидаемая последовательность от 1 до 16
+                expected_sequence = list(map(str, range(1, 8)))
                 # Проверка на строку с нумерацией столбцов от 1 до 16
                 if not recording:
                     # Проверка на пустую строку
                     if row.isnull().all():
                         continue  # Пропускаем пустые строки
-
                     # Проверяем, что первые 16 ячеек содержат именно последовательность чисел от 1 до 16
-                    actual_sequence = [str(cell).strip() for cell in row[:16] if pd.notna(cell)]
-                    print(f"actual_sequence: {actual_sequence}")
-                    print(f"expected_sequence: {expected_sequence}")
+                    actual_sequence = [str(cell).strip() for cell in row[:8] if pd.notna(cell)]
                     if actual_sequence == expected_sequence:
                         recording = True
                         print(f"Начало записи данных с индекса строки: {index}")
                         continue
-
                 # Используем регулярное выражение для поиска ключевой строки
-                if isinstance(row.iloc[5], str) and re.search(r'Итого', row.iloc[5].strip(), re.IGNORECASE):
-                    print(f"Нашли нужную строку: {index}")
+                if isinstance(row.iloc[4], str) and re.search(r'Итого', str(row.iloc[4]).strip(), re.IGNORECASE):
+                    print(f"Условие срабатывает для записи в базу")
                     # Если строка соответствует шаблону "Итого", сохраняем все накопленные данные в базу
                     if rows_to_insert:
+                        print(f"Начинаем записывать в базу")
                         try:
                             for r in rows_to_insert:
                                 TempTableUNC.objects.create(
@@ -525,28 +434,42 @@ def add_UNC(request):
                         except Exception as e:
                             print(f"Ошибка при сохранении данных в БД: {e}")
                     continue  # Переходим к следующей строке
-
-                if recording:                    
+                if recording:   
+                    print(f"Создаем словарь")
                     try:
                         # Создаем словарь для каждой строки затрат
-                        row_data = {
-                            'project_id': row.iloc[3], # id проекта
-                            'name_unc': row.iloc[5], # Имя УНЦ
-                            'name_object': row.iloc[6], # Имя объекта
-                            'voltage': row.iloc[10], # Напряжение
-                            'TX': row.iloc[11], # Техническая характеристика
-                            'count': row.iloc[18], # количевство
-                            'unit': row.iloc[19], # еденица измерени
-                            'unc_code': row.iloc[20], # номер расценки
-                        }            
+                        if row_type == 1:
+                            # Используем нижний вариант
+                            row_data = {
+                                'project_id': row.iloc[3], # id проекта
+                                'name_unc': row.iloc[4], # Имя УНЦ
+                                'name_object': row.iloc[5], # Имя объекта
+                                'voltage': row.iloc[9], # Напряжение
+                                'TX': row.iloc[10], # Техническая характеристика
+                                'count': row.iloc[15], # количевство
+                                'unit': row.iloc[16], # еденица измерени
+                                'unc_code': row.iloc[17], # номер расценки
+                            }
+                        elif row_type == 2:
+                            # Используем верхний вариант
+                            row_data = {
+                                'project_id': row.iloc[3], # id проекта
+                                'name_unc': row.iloc[5], # Имя УНЦ
+                                'name_object': row.iloc[6], # Имя объекта
+                                'voltage': row.iloc[10], # Напряжение
+                                'TX': row.iloc[11], # Техническая характеристика
+                                'count': row.iloc[18], # количевство
+                                'unit': row.iloc[19], # еденица измерени
+                                'unc_code': row.iloc[20], # номер расценки
+                            }
+
                         rows_to_insert.append(row_data)
                         print(f"Нашли нужную строку: {rows_to_insert}")
                     except Exception as e:
                         print(f"Ошибка при сохранении данных в БД: {e}")
 
         except Exception as e:
-            print(f"Ошибка на строке {index}: {e}")                  
-
+            print(f"Ошибка на строке {index}: {e}")
         messages.success(request, "Данные успешно загружены в базу данных.")
         return redirect('myapp:start')
     else:

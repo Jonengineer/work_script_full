@@ -66,69 +66,73 @@
         </div>
       </div>  
       <div class="row">
-        <div class="table">
-          <table class="highlight">
-            <thead>
-                <tr>
-                    <th>ОСР, ЛСР</th>
-                    <th>Наименование позиции затрат</th>
-                    <th>СР</th>
-                    <th>МР</th>
-                    <th>Обору</th>
-                    <th>Прочее</th>
-                    <th>Итого</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for chapter_id, records in grouped_records.items %}
-                    <tr>
-                        <td colspan="8" style="font-weight: bold;">Глава {{ chapter_id }}</td>
-                    </tr>
-                    {% for record in records %}
-                        <tr>
-                            <td>{{ record.local_costEstimate_id }}</td>
-                            <td>{{ record.expenses_name }}</td>
-                            <td>{{ record.construction_cost }}</td>
-                            <td>{{ record.installation_cost }}</td>
-                            <td>{{ record.equipment_cost }}</td>
-                            <td>{{ record.other_cost }}</td>
-                            <td>{{ record.total_cost }}</td>
-                        </tr>
-                    {% endfor %}
-                {% endfor %}
-            </tbody>
-          </table>
-        </div>
-        <div class="table">
-          <table class="highlight">
-            <thead>
-                <tr>
-                    <th>id</th>
-                    <th>Имя УНЦ</th>
-                    <th>Имя объекта</th>
-                    <th>U,кВ</th>
-                    <th>Техническая</th>
-                    <th>Кол-во</th>
-                    <th>ЕД</th>
-                    <th>номер</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for record in all_record_unc %}
+        <div class="row-table">
+          <div class="table">
+            <table class="highlight">
+              <thead>
                   <tr>
-                      <td>{{ record.project_id }}</td>
-                      <td>{{ record.name_unc }}</td>
-                      <td>{{ record.name_object }}</td>
-                      <td>{{ record.voltage }}</td>
-                      <td>{{ record.TX }}</td>
-                      <td>{{ record.count }}</td>
-                      <td>{{ record.unit }}</td>
-                      <td>{{ record.unc_code }}</td>
+                      <th>ОСР, ЛСР</th>
+                      <th>Наименование позиции затрат</th>
+                      <th>СР</th>
+                      <th>МР</th>
+                      <th>Обору</th>
+                      <th>Прочее</th>
+                      <th>Итого</th>
                   </tr>
-                {% endfor %}
-            </tbody>
-          </table>
-        </div> 
+              </thead>
+              <tbody>
+                  {% for chapter_id, records in grouped_records.items %}
+                      <tr>
+                          <td colspan="8" style="font-weight: bold;">Глава {{ chapter_id }}</td>
+                      </tr>
+                      {% for record in records %}
+                          <tr>
+                              <td>{{ record.local_costEstimate_id }}</td>
+                              <td>{{ record.expenses_name }}</td>
+                              <td>{{ record.construction_cost }}</td>
+                              <td>{{ record.installation_cost }}</td>
+                              <td>{{ record.equipment_cost }}</td>
+                              <td>{{ record.other_cost }}</td>
+                              <td>{{ record.total_cost }}</td>
+                          </tr>
+                      {% endfor %}
+                  {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="row-table">
+          <div class="table">
+            <table class="highlight">
+              <thead>
+                  <tr>
+                      <th>id</th>
+                      <th>Имя УНЦ</th>
+                      <th>Имя объекта</th>
+                      <th>U,кВ</th>
+                      <th>Техническая</th>
+                      <th>Кол-во</th>
+                      <th>ЕД</th>
+                      <th>номер</th>
+                  </tr>
+              </thead>
+              <tbody>
+                  {% for record in all_record_unc %}
+                    <tr>
+                        <td>{{ record.project_id }}</td>
+                        <td>{{ record.name_unc }}</td>
+                        <td>{{ record.name_object }}</td>
+                        <td>{{ record.voltage }}</td>
+                        <td>{{ record.TX }}</td>
+                        <td>{{ record.count }}</td>
+                        <td>{{ record.unit }}</td>
+                        <td>{{ record.unc_code }}</td>
+                    </tr>
+                  {% endfor %}
+              </tbody>
+            </table>
+          </div> 
+        </div>
       </div> 
     {% endblock %}
 
