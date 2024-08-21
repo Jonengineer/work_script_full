@@ -426,28 +426,51 @@ def add_UNC(request):
                         recording = True
                         messages.info(request, f"Начало записи данных с индекса строки: {index + 1}")
                         continue
-                
-                if isinstance(row.iloc[4], str) and re.search(r'Итого', str(row.iloc[4]).strip(), re.IGNORECASE):
-                    messages.info(request, f"Условие срабатывает для записи в базу на строке {index + 1}")
-                    
-                    if rows_to_insert:
-                        try:
-                            for r in rows_to_insert:
-                                TempTableUNC.objects.create(
-                                    project_id=r['project_id'],
-                                    name_unc=r['name_unc'],
-                                    name_object=r['name_object'],
-                                    voltage=r['voltage'],
-                                    TX=r['TX'],
-                                    count=r['count'],
-                                    unit=r['unit'],
-                                    unc_code=r['unc_code']
-                                )
-                            messages.success(request, f"Данные успешно записаны в БД для {len(rows_to_insert)} строк.")
-                            rows_to_insert = []  # Очищаем список после записи
-                        except Exception as e:
-                            messages.error(request, f"Ошибка при сохранении данных в БД на строке {index + 1}: {e}")
-                    continue  # Переходим к следующей строке
+                if row_type == 1:
+                    if isinstance(row.iloc[4], str) and re.search(r'Итого', str(row.iloc[4]).strip(), re.IGNORECASE):
+                        messages.info(request, f"Условие срабатывает для записи в базу на строке {index + 1}")
+                        
+                        if rows_to_insert:
+                            try:
+                                for r in rows_to_insert:
+                                    TempTableUNC.objects.create(
+                                        project_id=r['project_id'],
+                                        name_unc=r['name_unc'],
+                                        name_object=r['name_object'],
+                                        voltage=r['voltage'],
+                                        TX=r['TX'],
+                                        count=r['count'],
+                                        unit=r['unit'],
+                                        unc_code=r['unc_code']
+                                    )
+                                messages.success(request, f"Данные успешно записаны в БД для {len(rows_to_insert)} строк.")
+                                rows_to_insert = []  # Очищаем список после записи
+                            except Exception as e:
+                                messages.error(request, f"Ошибка при сохранении данных в БД на строке {index + 1}: {e}")
+                        continue  # Переходим к следующей строке
+
+                elif row_type == 2:
+                    if isinstance(row.iloc[5], str) and re.search(r'Итого', str(row.iloc[5]).strip(), re.IGNORECASE):
+                        messages.info(request, f"Условие срабатывает для записи в базу на строке {index + 1}")
+                        
+                        if rows_to_insert:
+                            try:
+                                for r in rows_to_insert:
+                                    TempTableUNC.objects.create(
+                                        project_id=r['project_id'],
+                                        name_unc=r['name_unc'],
+                                        name_object=r['name_object'],
+                                        voltage=r['voltage'],
+                                        TX=r['TX'],
+                                        count=r['count'],
+                                        unit=r['unit'],
+                                        unc_code=r['unc_code']
+                                    )
+                                messages.success(request, f"Данные успешно записаны в БД для {len(rows_to_insert)} строк.")
+                                rows_to_insert = []  # Очищаем список после записи
+                            except Exception as e:
+                                messages.error(request, f"Ошибка при сохранении данных в БД на строке {index + 1}: {e}")
+                        continue  # Переходим к следующей строке
                 
                 if recording:
                     try:
