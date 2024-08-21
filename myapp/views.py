@@ -1,12 +1,15 @@
 from django.shortcuts import render
-from .models import TempTable, DictSecChapter, TempTableUNC, TempTableССКUNC, ExpensesToEpcMap, ExpensesToEpcMap
+from .models import TempTable, DictSecChapter, TempTableUNC, TempTableССКUNC, ExpensesToEpcMap, ExpensesToEpcMap, ObjectAnalog
 import pandas as pd
 import re
-from django.shortcuts import redirect
+from django.shortcuts import get_object_or_404, redirect
 from django.contrib import messages
 from django.http import HttpResponse
 from collections import defaultdict
 from collections import defaultdict, OrderedDict
+from django.db import transaction
+from django.db.models import Count, Q
+from .forms import ObjectAnalogForm
 
 # Валидация кварталов
 def format_quarter_info(quarter_str):
@@ -130,6 +133,21 @@ def delete_CCR_UNC(request):
     else:
         return redirect('myapp:CCP_UNC_page')  # Замените 'some_page' на нужный URL или название маршрута
 
+# Удаление ОА
+def delete_object_analog(request, project_id):
+    try:
+        # Удаляем все записи, связанные с данным проектом
+        deleted_count, _ = ObjectAnalog.objects.filter(project_id=project_id).delete()
+
+        # Сообщаем пользователю об успешном удалении       
+    except Exception as e:
+        # Если произошла ошибка, сообщаем об этом пользователю
+        messages.error(request, f"Ошибка при удалении записей для проекта с ID {project_id}: {e}")
+
+    # Перенаправляем пользователя на страницу после выполнения операции
+    messages.success(request, f"Успешно удалено {deleted_count} записей для проекта с ID {project_id}")
+    return redirect('myapp:object_analog')  # Укажите правильный URL-имя для редиректа
+
 
 # Стартовая страница
 def start_page(request):
@@ -187,7 +205,7 @@ def CCP_UNC_page(request):
         'unlinked_grouped_records': sorted_unlinked_grouped_records,
         'unlinked_temp_UNC_records': unlinked_temp_UNC_records,
     }
-    print(sorted_unlinked_grouped_records)
+
     return render(request, 'CCP_UNC.html', context)
 
 # Страница ключевых слов
@@ -199,6 +217,40 @@ def dict_word_page(request):
             'dict_word': dict_word,
         }
     return render(request, 'dict_word_page.html', context)
+
+# Объектs аналог
+def object_analog(request):
+    # Получаем список уникальных проектов с подсчетом количества строк для каждого проекта
+    project_list = (
+        ObjectAnalog.objects
+        .values('project_id', 'project_name')
+        .annotate(total_records=Count('id'))
+        .annotate(num_records=Count('id'))
+        .annotate(num_records_TX=Count('TX', filter=Q(TX__isnull=False) & ~Q(TX='')))
+        .annotate(num_checked=Count('is_check', filter=Q(is_check=True)))
+        .order_by('project_id')
+    )
+
+    context = {
+        'project_list': project_list,
+    }
+
+    return render(request, 'object_anlog.html', context)
+
+# Содержание Объекта аналога
+def object_analog_content(request, project_id):
+    # Фильтрация строк по идентификатору проекта и сортировка по идентификатору главы
+    all_object_analog = ObjectAnalog.objects.filter(project_id=project_id).order_by('chapter_id')
+
+    context = {
+        'all_object_analog': all_object_analog,
+        'project_id': project_id
+    }
+    print(f' id {project_id}')
+
+    return render(request, 'object_anlog_content.html', context)
+
+
 
 # Импорт CCR
 def add_CCR(request):
@@ -382,7 +434,6 @@ def add_CCR(request):
         messages.error(request, "Файл не загружен.")
         return redirect('myapp:start')
 
-
 # Импорт UNC
 def add_UNC(request):
     if request.method == 'POST' and request.FILES.get('UNC'):
@@ -435,6 +486,7 @@ def add_UNC(request):
                                 for r in rows_to_insert:
                                     TempTableUNC.objects.create(
                                         project_id=r['project_id'],
+                                        project_name=r['project_name'],
                                         name_unc=r['name_unc'],
                                         name_object=r['name_object'],
                                         voltage=r['voltage'],
@@ -458,6 +510,7 @@ def add_UNC(request):
                                 for r in rows_to_insert:
                                     TempTableUNC.objects.create(
                                         project_id=r['project_id'],
+                                        project_name=r['project_name'],
                                         name_unc=r['name_unc'],
                                         name_object=r['name_object'],
                                         voltage=r['voltage'],
@@ -477,6 +530,7 @@ def add_UNC(request):
                         if row_type == 1:
                             row_data = {
                                 'project_id': row.iloc[3], # id проекта
+                                'project_name': row.iloc[2], # имя проекта
                                 'name_unc': row.iloc[4], # Имя УНЦ
                                 'name_object': row.iloc[5], # Имя объекта
                                 'voltage': row.iloc[9], # Напряжение
@@ -488,6 +542,7 @@ def add_UNC(request):
                         elif row_type == 2:
                             row_data = {
                                 'project_id': row.iloc[3], # id проекта
+                                'project_name': row.iloc[2], # имя проекта
                                 'name_unc': row.iloc[5], # Имя УНЦ
                                 'name_object': row.iloc[6], # Имя объекта
                                 'voltage': row.iloc[10], # Напряжение
@@ -575,3 +630,117 @@ def add_UNC_CCR(request):
 
     messages.success(request, "Процесс сопоставления успешно завершен.")
     return redirect('myapp:CCP_UNC_page')
+
+# Сохранение объекта аналога
+def add_object_analog(request):
+    # Получаем все записи
+    all_temp_records = TempTable.objects.all()
+    all_CCP_UNC = TempTableССКUNC.objects.all()
+
+    # Получаем все записи из TempTableССКUNC, чтобы исключить связанные позиции
+    linked_temp_records_ids = TempTableССКUNC.objects.values_list('temp_table_id', flat=True)
+
+    try:
+        for linked_record in all_CCP_UNC:
+            project_id_unc = linked_record.temp_table_unc_id.project_id
+            if ObjectAnalog.objects.filter(project_id=project_id_unc).exists():
+                messages.error(request, f"Данный проект {project_id_unc} уже есть в базе")
+                print(f"Проект с ID {project_id_unc} уже существует в базе объектов аналогов. Прерываем выполнение.")
+                return redirect('myapp:CCP_UNC_page')
+
+        with transaction.atomic():  # Используем транзакцию для атомарности операции
+            # Проходим по всем связанным позициям
+            for linked_record in all_CCP_UNC:
+                temp_table_record = linked_record.temp_table_id
+                temp_table_unc_record = linked_record.temp_table_unc_id
+                project_name_unc = temp_table_unc_record.project_name
+                project_id_unc = temp_table_unc_record.project_id
+                matched_keyword = linked_record.matched_keyword
+                additional_info = linked_record.additional_info
+
+                # Если проект не существует, продолжаем добавление 
+                if temp_table_record.expenses_name and temp_table_record.expenses_name.strip() and temp_table_record.expenses_name.lower() != 'nan':
+                    # Создаем объект ObjectAnalog для каждой связанной позиции
+                    ObjectAnalog.objects.create(
+                        project_id=project_id_unc,
+                        project_name=project_name_unc,
+                        chapter_id=temp_table_record.chapter_id,
+                        object_costEstimate_id=temp_table_record.object_costEstimate_id,
+                        local_costEstimate_id=temp_table_record.local_costEstimate_id,
+                        expenses_name=temp_table_record.expenses_name,
+                        quarter=temp_table_record.quarter,
+                        construction_cost=temp_table_record.construction_cost,
+                        installation_cost=temp_table_record.installation_cost,
+                        equipment_cost=temp_table_record.equipment_cost,
+                        other_cost=temp_table_record.other_cost,
+                        total_cost=temp_table_record.total_cost,
+                        unc_code=temp_table_unc_record.unc_code,
+                        name_unc=temp_table_unc_record.name_unc,
+                        name_object=temp_table_unc_record.name_object,
+                        voltage=temp_table_unc_record.voltage,
+                        TX=temp_table_unc_record.TX,
+                        count=temp_table_unc_record.count,
+                        unit=temp_table_unc_record.unit,
+                        matched_keyword=matched_keyword,
+                        additional_info=additional_info
+                    )
+
+            # Проходим по всем несвязанным позициям из TempTable, которые не имеют связей с TempTableUNC
+            unlinked_temp_records = all_temp_records.exclude(id__in=linked_temp_records_ids)
+
+            for unlinked_record in unlinked_temp_records:
+                if unlinked_record.expenses_name and unlinked_record.expenses_name.strip() and unlinked_record.expenses_name.lower() != 'nan':
+                    # Создаем объект ObjectAnalog только с данными из TempTable, без привязки к УНЦ
+                    ObjectAnalog.objects.create(
+                        project_id=project_id_unc,
+                        project_name=project_name_unc,  # Здесь можно оставить пустым или заполнить, если есть данные
+                        chapter_id=unlinked_record.chapter_id,
+                        object_costEstimate_id=unlinked_record.object_costEstimate_id,
+                        local_costEstimate_id=unlinked_record.local_costEstimate_id,
+                        expenses_name=unlinked_record.expenses_name,
+                        quarter=unlinked_record.quarter,
+                        construction_cost=unlinked_record.construction_cost,
+                        installation_cost=unlinked_record.installation_cost,
+                        equipment_cost=unlinked_record.equipment_cost,
+                        other_cost=unlinked_record.other_cost,
+                        total_cost=unlinked_record.total_cost,
+                        unc_code="",
+                        name_unc="",
+                        name_object="",
+                        voltage="",
+                        TX="",
+                        count=None,
+                        unit="",
+                        matched_keyword="",
+                        additional_info="",
+                    )
+                else:
+                    print('Строка пустая')
+
+        # Если операция завершена успешно, можно вернуть соответствующее сообщение
+        messages.success(request, f"Объект аналог успешно сохранен")
+        return redirect('myapp:CCP_UNC_page')
+
+    except Exception as e:
+        # Если произошла ошибка, транзакция будет откатана
+        messages.error(request, f"Ошибка в сохранении объекта аналога {e}")
+        return redirect('myapp:CCP_UNC_page')
+
+
+# Сохранение всех строк ОА
+def save_all_object_analogs(request, project_id):
+    if request.method == 'POST':
+        all_object_analog = ObjectAnalog.objects.filter(project_id=project_id)
+        
+        for record in all_object_analog:
+            # Проверяем наличие флага проверки
+            is_checked = f'is_check_{record.id}' in request.POST
+            description = request.POST.get(f'description_{record.id}', '')
+
+            # Обновляем данные
+            record.is_check = is_checked
+            record.description = description
+            record.save()
+
+        messages.success(request, "Все изменения сохранены.")
+        return redirect('myapp:object_analog_content', project_id=project_id)

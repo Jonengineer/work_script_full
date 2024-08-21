@@ -1,5 +1,9 @@
 html {
     font-size: 12px;
+    width: 100%;
+}
+body {
+    width: 100%;
 }
 
 .row {
@@ -7,7 +11,10 @@ html {
     flex-direction: row;
     justify-content: space-between;
     gap: 10px;
+    margin-left: 0px;
+    margin-right: 0px;
     margin-bottom: 4px;
+    width: 100%;
 }
 
 .row-empty {
@@ -63,6 +70,7 @@ input {
     padding-left: 10px;
     padding-top: 10px;
     padding-bottom: 10px;
+    table-layout: auto;
 }
 
 .table_2 {
@@ -89,16 +97,29 @@ input {
     line-height: 10px !important;
     padding: 7px;
     border-radius: 10px;
-    max-width: 110px;
+    max-width: 350px;
 }
 
 .delete {
     background-color: rgb(228, 53, 56);
 }
 
+.save {
+    background-color: #26a69a;
+}
+
 
 td, th {
     padding: 5px 5px;
+}
+td, label, input[type="checkbox"] {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+.right-btn {
+    margin-left: auto;
 }
 
 /* УВЕДОМЛЕНИЯ ТОСТЫ */

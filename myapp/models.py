@@ -15,14 +15,12 @@ class SummaryEstimateCalculation(models.Model):
     class Meta:
         db_table = 'summary_estimate_calculation'
 
-
 class ObjectCostEstimate(models.Model):
     object_cost_estimate_id = models.AutoField(primary_key=True)
     summary_estimate_calculation = models.ForeignKey(SummaryEstimateCalculation, on_delete=models.CASCADE)
 
     class Meta:
         db_table = 'object_cost_estimate'
-
 
 class LocalCostEstimate(models.Model):
     local_cost_estimate_id = models.AutoField(primary_key=True)
@@ -31,7 +29,6 @@ class LocalCostEstimate(models.Model):
 
     class Meta:
         db_table = 'local_cost_estimate'
-
 
 class Expense(models.Model):
     expense_id = models.AutoField(primary_key=True)
@@ -44,7 +41,6 @@ class Expense(models.Model):
 
     class Meta:
         db_table = 'expense'
-
 
 class DictExpenditure(models.Model):
     dict_expenditure_id = models.AutoField(primary_key=True)
@@ -103,6 +99,7 @@ class TempTable(models.Model):
 class TempTableUNC(models.Model):
     id = models.AutoField(primary_key=True)
     project_id = models.TextField()
+    project_name = models.TextField()
     name_unc = models.TextField()
     name_object = models.TextField()
     voltage = models.TextField()
@@ -123,3 +120,32 @@ class TempTableССКUNC(models.Model):
 
     class Meta:
         db_table = 'temp_table_cck_unc'
+
+class ObjectAnalog(models.Model):
+    id = models.AutoField(primary_key=True)
+    project_id = models.TextField()
+    project_name = models.TextField()
+    chapter_id = models.ForeignKey('DictSecChapter', on_delete=models.CASCADE)
+    object_costEstimate_id = models.TextField()
+    local_costEstimate_id = models.TextField()
+    expenses_name = models.TextField()
+    quarter = models.TextField()
+    construction_cost = models.TextField(null=True, blank=True, verbose_name="Стоимость строительных работ")
+    installation_cost = models.TextField(null=True, blank=True, verbose_name="Стоимость монтажных работ")
+    equipment_cost = models.TextField(null=True, blank=True, verbose_name="Стоимость оборудования, мебели, инвентаря")
+    other_cost = models.TextField(null=True, blank=True, verbose_name="Стоимость прочих затрат")
+    total_cost = models.TextField(null=True, blank=True, verbose_name="Общая сметная стоимость")    
+    unc_code = models.TextField()
+    name_unc = models.TextField()
+    name_object = models.TextField()
+    voltage = models.TextField()
+    TX = models.TextField()
+    count = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    unit = models.TextField()
+    matched_keyword = models.TextField()  # Ключевое слово, по которому произошло связывание
+    additional_info = models.TextField(null=True, blank=True)  # Дополнительная информация о связывании
+    is_check = models.BooleanField(default=False, verbose_name="Проверено")
+    description = models.TextField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'object_analog'

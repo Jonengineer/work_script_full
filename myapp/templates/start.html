@@ -50,19 +50,19 @@
           </form>
         </div>
         <div class="content-btn">
-          <p>Алгоритм связывания</p>
-          <a href="{% url 'myapp:CCP_UNC_page' %}" class="waves-effect waves-light btn">Перейти</a>
-        </div>
-        <div class="content-btn">
-          <p>Объекты аналоги:</p>
-          <button  class="waves-effect waves-light btn">Посмотреть</button>
-        </div>
-        <div class="content-btn">
           <p>Очистить список:</p>
           <form method="post" action="{% url 'myapp:delete_temp' %}">
               {% csrf_token %}
               <button type="submit" class="waves-effect waves-light btn delete">Очистить</button>
           </form>
+        </div>
+        <div class="content-btn">
+          <p>Алгоритм связывания</p>
+          <a href="{% url 'myapp:CCP_UNC_page' %}" class="waves-effect waves-light btn">Перейти</a>
+        </div>
+        <div class="content-btn">
+          <p>Объекты аналоги:</p>
+          <a href="{% url 'myapp:object_analog' %}" class="waves-effect waves-light btn">Открыть</a>
         </div>
       </div>  
       <div class="row">

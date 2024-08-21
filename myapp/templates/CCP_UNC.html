@@ -25,10 +25,7 @@
           <p>Запуск алгоритма</p>
           <a href="{% url 'myapp:add_UNC_CCR' %}" class="waves-effect waves-light btn">Связать</a>
         </div>
-        <div class="content-btn">
-          <p>Ключевые слова:</p>
-          <a href="{% url 'myapp:dict_word_page' %}" class="waves-effect waves-light btn">Перейти</a>
-        </div>
+        
         <div class="content-btn">
           <p>Очистить список:</p>
           <form method="post" action="{% url 'myapp:delete_CCR_UNC' %}">
@@ -36,61 +33,85 @@
               <button type="submit" class="waves-effect waves-light btn delete">Очистить</button>
           </form>
         </div>
+        <div class="content-btn">
+          <p>Сохранить ОА:</p>
+          <form method="post" action="{% url 'myapp:add_object_analog' %}">
+              {% csrf_token %}
+              <button type="submit" class="waves-effect waves-light btn save">Сохранить</button>
+          </form>
+        </div>
+        <div class="content-btn">
+          <p>Ключевые слова:</p>
+          <a href="{% url 'myapp:dict_word_page' %}" class="waves-effect waves-light btn">Открыть</a>
+        </div>
+        <div class="content-btn">
+          <p>Объекты аналоги:</p>
+          <a href="{% url 'myapp:object_analog' %}" class="waves-effect waves-light btn">Открыть</a>
+        </div>
     </div>
+    {% if messages %}
+    <ul class="message-list">
+        {% for message in messages %}
+          <li class="{% if message.tags %} {{ message.tags }} {% endif %}">
+            {{ message }}
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %} 
     <div class="row">
-        <div class="table_2">
-          <table class="highlight">
-            <thead>
+      <div class="table_2">
+        <table class="highlight">
+          <thead>
+              <tr>
+                  <th>ОСР, ЛСР</th>
+                  <th>Наименование позиции затрат</th>
+                  <th>СР</th>
+                  <th>МР</th>
+                  <th>Обору</th>
+                  <th>Прочее</th>
+                  <th>Итого</th>
+                  <th>---</th>
+                  <th>Имя УНЦ</th>
+                  <th>Имя объекта</th>
+                  <th>U,кВ</th>
+                  <th>Техническая</th>
+                  <th>Кол-во</th>
+                  <th>ЕД</th>
+                  <th>номер</th>
+                  <th>---</th>
+                  <th>Ключ</th>
+              </tr>
+          </thead>
+          <tbody>
+            {% for chapter_id, records in grouped_records.items %}
                 <tr>
-                    <th>ОСР, ЛСР</th>
-                    <th>Наименование позиции затрат</th>
-                    <th>СР</th>
-                    <th>МР</th>
-                    <th>Обору</th>
-                    <th>Прочее</th>
-                    <th>Итого</th>
-                    <th>---</th>
-                    <th>Имя УНЦ</th>
-                    <th>Имя объекта</th>
-                    <th>U,кВ</th>
-                    <th>Техническая</th>
-                    <th>Кол-во</th>
-                    <th>ЕД</th>
-                    <th>номер</th>
-                    <th>---</th>
-                    <th>Ключ</th>
+                    <td colspan="8" style="font-weight: bold;">Глава {{ chapter_id }}</td>
                 </tr>
-            </thead>
-            <tbody>
-              {% for chapter_id, records in grouped_records.items %}
-                  <tr>
-                      <td colspan="8" style="font-weight: bold;">Глава {{ chapter_id }}</td>
-                  </tr>
-                  {% for record in records %}
-                  <tr>
-                      <td>{{ record.temp_table_id.local_costEstimate_id }}</td>
-                      <td>{{ record.temp_table_id.expenses_name }}</td>
-                      <td>{{ record.temp_table_id.construction_cost }}</td>
-                      <td>{{ record.temp_table_id.installation_cost }}</td>
-                      <td>{{ record.temp_table_id.equipment_cost }}</td>
-                      <td>{{ record.temp_table_id.other_cost }}</td>
-                      <td>{{ record.temp_table_id.total_cost }}</td>
-                      <td></td>
-                      <td>{{ record.temp_table_unc_id.name_unc }}</td>
-                      <td>{{ record.temp_table_unc_id.name_object }}</td>
-                      <td>{{ record.temp_table_unc_id.voltage }}</td>
-                      <td>{{ record.temp_table_unc_id.TX }}</td>
-                      <td>{{ record.temp_table_unc_id.count }}</td>
-                      <td>{{ record.temp_table_unc_id.unit }}</td>
-                      <td>{{ record.temp_table_unc_id.unc_code }}</td>
-                      <td></td>
-                      <td>{{ record.matched_keyword }}</td>
-                  </tr>       
-                {% endfor %}
+                {% for record in records %}
+                <tr>
+                    <td>{{ record.temp_table_id.local_costEstimate_id }}</td>
+                    <td>{{ record.temp_table_id.expenses_name }}</td>
+                    <td>{{ record.temp_table_id.construction_cost }}</td>
+                    <td>{{ record.temp_table_id.installation_cost }}</td>
+                    <td>{{ record.temp_table_id.equipment_cost }}</td>
+                    <td>{{ record.temp_table_id.other_cost }}</td>
+                    <td>{{ record.temp_table_id.total_cost }}</td>
+                    <td></td>
+                    <td>{{ record.temp_table_unc_id.name_unc }}</td>
+                    <td>{{ record.temp_table_unc_id.name_object }}</td>
+                    <td>{{ record.temp_table_unc_id.voltage }}</td>
+                    <td>{{ record.temp_table_unc_id.TX }}</td>
+                    <td>{{ record.temp_table_unc_id.count }}</td>
+                    <td>{{ record.temp_table_unc_id.unit }}</td>
+                    <td>{{ record.temp_table_unc_id.unc_code }}</td>
+                    <td></td>
+                    <td>{{ record.matched_keyword }}</td>
+                </tr>       
               {% endfor %}
-            </tbody>
-          </table>
-        </div>        
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>        
     </div> 
     <div class="row-empty">      
     </div> 
@@ -168,7 +189,7 @@
     {% block scripts %}  
       <!-- Подключение jQuery -->
       <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-      <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>       
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
     {% endblock %}    
     
   </body>

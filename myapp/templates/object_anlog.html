@@ -1,0 +1,87 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ru">
+  {% block styles %}
+  <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">        
+      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
+      <link rel="stylesheet" type="text/css" href="{% static 'css/start.css' %}">
+      <link rel="icon" href="{% static 'favicon.ico' %}" type="image/x-icon">       
+  </head>
+  {% endblock %}   
+  <body>
+    {% block header %}
+    <div class="row">
+        <div class="content-btn">
+          <a href="{% url 'myapp:CCP_UNC_page' %}" class="waves-effect waves-light btn">Назад</a>
+        </div>        
+    </div>
+    {% if messages %}
+        <ul class="message-list">
+            {% for message in messages %}
+            <li class="{% if message.tags %} {{ message.tags }} {% endif %}">
+                {{ message }}
+            </li>
+            {% endfor %}
+        </ul>
+    {% endif %} 
+    <div class="row">
+      <div class="table_2">
+          <table class="highlight">
+              <thead>
+                  <tr>
+                      <th>Номер</th>
+                      <th>Идентификатор</th>
+                      <th>Наименование проекта</th>
+                      <th>Позиции</th>
+                      <th>Связано</th>
+                      <th>Проверено</th>
+                      <th>Действия</th>
+                      <th>Проверен</th>
+                      <th>Удалить</th>
+                  </tr>
+              </thead>
+              <tbody>
+                  {% for project in project_list %}
+                      <tr>
+                          <td>{{ forloop.counter }}</td>
+                          <td>{{ project.project_id }}</td>
+                          <td>{{ project.project_name }}</td>
+                          <td>{{ project.num_records }}</td>
+                          <td>{{ project.num_records_TX }}</td> 
+                          <td>{{ project.num_checked }}</td>
+                          <td>
+                              <a href="{% url 'myapp:object_analog_content' project_id=project.project_id %}" class="waves-effect waves-light btn">Посмотреть</a>
+                          </td>
+                          <td>
+                            {% if project.num_records == project.num_checked %}
+                                <!-- Зелёный значок -->
+                                <p style="color: #26a69a; font-size: 14px; font-weight: bold;">ПРОВЕРЕН</p>
+                            {% else %}
+                                <!-- Оставить пустым или добавить другой знак -->
+                                <p style="color: rgb(228, 53, 56); ont-size: 14px; font-weight: bold">НЕ ПРОВЕРЕН</p>
+                            {% endif %}
+                          </td>
+                          <td>
+                            <a href="{% url 'myapp:delete_object_analog' project_id=project.project_id %}" class="waves-effect waves-light btn delete">Удалить</a>
+                          </td>
+                      </tr>
+                  {% endfor %}
+              </tbody>
+          </table>
+      </div>        
+    </div>
+
+    {% endblock %}
+
+    {% block content %}
+    {% endblock %}
+
+    {% block scripts %}  
+      <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>       
+    {% endblock %}    
+    
+  </body>
+</html>

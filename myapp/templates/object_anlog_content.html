@@ -1,0 +1,109 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ru">
+  {% block styles %}
+  <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">        
+      <link rel="preload" href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'" crossorigin="anonymous">
+      <link rel="preconnect" href="https://fonts.googleapis.com">
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>        
+      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css"> 
+      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tooltipster/3.3.0/css/tooltipster.min.css">                
+      
+      <link rel="stylesheet" type="text/css" href="{% static 'css/start.css' %}">
+      <link rel="icon" href="{% static 'favicon.ico' %}" type="image/x-icon">       
+  </head>
+  {% endblock %}   
+  <body>
+    {% block header %}
+    <div class="row">
+        <div class="content-btn">
+          <a href="{% url 'myapp:object_analog' %}" class="waves-effect waves-light btn">Назад</a>
+        </div>  
+        <div class="content-btn">
+            <p style="font-size: 16px; font-weight: bold;">Идентификатор проекта: {{ project_id }}</p>
+        </div>       
+    </div>
+    {% if messages %}
+    <ul class="message-list">
+        {% for message in messages %}
+        <li class="{% if message.tags %} {{ message.tags }} {% endif %}">
+            {{ message }}
+        </li>
+        {% endfor %}
+        </ul>
+    {% endif %}
+    <div class="row">
+        <div class="table_2">
+            <form method="post" action="{% url 'myapp:save_all_object_analogs' project_id %}">
+                {% csrf_token %}
+                <table class="highlight">
+                    <thead>
+                        <tr>
+                            <th>Глава</th>
+                            <th>ОСР, ЛСР</th>
+                            <th>Наименование позиции затрат</th>
+                            <th>Итого</th>
+                            <th>Имя УНЦ</th>
+                            <th>Имя объекта</th>
+                            <th>U,кВ</th>
+                            <th>Техническая</th>
+                            <th>Кол-во</th>
+                            <th>ЕД</th>
+                            <th>номер</th>
+                            <th>Ключ</th>
+                            <th>Проверка</th>
+                            <th>Описание</th>
+                        </tr>
+                    </thead>
+                    <tbody>                    
+                        {% for record in all_object_analog %}
+                            <tr>
+                                <td>{{ record.chapter_id.dict_sec_chapter_id }}</td>
+                                <td>{{ record.local_costEstimate_id }}</td>
+                                <td>{{ record.expenses_name }}</td>
+                                <td>{{ record.total_cost }}</td>
+                                <td>{{ record.name_unc }}</td>
+                                <td>{{ record.name_object }}</td>
+                                <td>{{ record.voltage }}</td>
+                                <td>{{ record.TX }}</td>
+                                <td>{{ record.count }}</td>
+                                <td>{{ record.unit }}</td>
+                                <td>{{ record.unc_code }}</td>
+                                <td>{{ record.matched_keyword }}</td>
+                                <td style="width: 50px;">
+                                    <label style="margin: 0; padding: 0; display: inline-flex; align-items: center;">
+                                        <input type="checkbox" class="filled-in" name="is_check_{{ record.id }}" {% if record.is_check %}checked{% endif %} />
+                                        <span style="margin: 0; padding: 0;"></span>
+                                    </label>
+                                </td>
+                                <td>
+                                    <textarea name="description_{{ record.id }}" style="width: 300px;">{{ record.description }}</textarea>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                <div class="row">
+                    <div class="content-btn right-btn">
+                        <button type="submit" class="waves-effect waves-light btn save">Сохранить все изменения</button>
+                    </div>        
+                </div>
+            </form>
+        </div>        
+    </div>
+
+    {% endblock %}
+
+    {% block content %}
+    {% endblock %}
+
+    {% block scripts %}  
+      <!-- Подключение jQuery -->
+      <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>       
+    {% endblock %}    
+    
+  </body>
+</html>
