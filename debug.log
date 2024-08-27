@@ -26959,3 +26959,4 @@ myapp.models.TempTable.DoesNotExist: TempTable matching query does not exist.
 2024-08-27 11:33:00,953 - INFO - E:\Работа\ЦСИП\project_FX\myproject\myapp\views.py changed, reloading.
 2024-08-27 11:42:04,527 - INFO - E:\Работа\ЦСИП\project_FX\myproject\myapp\views.py changed, reloading.
 2024-08-27 11:42:07,991 - INFO - E:\Работа\ЦСИП\project_FX\myproject\myapp\views.py changed, reloading.
+2024-08-27 12:01:51,905 - INFO - E:\Работа\ЦСИП\project_FX\myproject\myapp\migrations\0017_objectanalog_key_id.py changed, reloading.
