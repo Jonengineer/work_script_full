@@ -20,9 +20,11 @@ urlpatterns = [
     
     # Добавления
     path('add_expense_to_epc/', views.add_expense_to_epc, name='add_expense_to_epc'),
+    path('edit_expense_to_epc/<int:expense_id>/', views.edit_expense_to_epc, name='edit_expense_to_epc'),
     path('add_ccr/', views.add_CCR, name='add_CCR'),
     path('add_unc/', views.add_UNC, name='add_UNC'),
     path('add_unc_ccr/', views.add_UNC_CCR, name='add_UNC_CCR'),
     path('add_object_analog/', views.add_object_analog, name='add_object_analog'),
     path('save_all_object_analogs/<str:project_id>/', views.save_all_object_analogs, name='save_all_object_analogs'),
+    path('re_add_UNC_CCR/<str:project_id>/', views.re_add_UNC_CCR, name='re_add_UNC_CCR'),
 ]

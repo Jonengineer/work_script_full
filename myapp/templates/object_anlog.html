@@ -38,6 +38,7 @@
                       <th>Связано</th>
                       <th>Проверено</th>
                       <th>Действия</th>
+                      <th>Связать повторно</th>
                       <th>Проверен</th>
                       <th>Удалить</th>
                   </tr>
@@ -53,6 +54,10 @@
                           <td>{{ project.num_checked }}</td>
                           <td>
                               <a href="{% url 'myapp:object_analog_content' project_id=project.project_id %}" class="waves-effect waves-light btn">Посмотреть</a>
+                          </td>
+                          <td>
+                            <a class="waves-effect waves-light btn">Связать</a>
+                            {% comment %} <a href="{% url 'myapp:re_add_UNC_CCR' project_id=project.project_id %}" class="waves-effect waves-light btn">Связать</a> {% endcomment %}
                           </td>
                           <td>
                             {% if project.num_records == project.num_checked %}

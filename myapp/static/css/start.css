@@ -105,14 +105,14 @@ input {
 }
 
 .save {
-    background-color: #26a69a;
+    background-color: #26a646;
 }
 
 
 td, th {
     padding: 5px 5px;
 }
-td, label, input[type="checkbox"] {
+input[type="checkbox"] {
     box-sizing: border-box;
     margin: 0;
     padding: 0;

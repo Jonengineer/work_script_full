@@ -82,10 +82,10 @@ class TempTable(models.Model):
     id = models.AutoField(primary_key=True)
     project_id = models.TextField()
     chapter_id = models.ForeignKey('DictSecChapter', on_delete=models.CASCADE)
-    object_costEstimate_id = models.TextField()
+    object_costEstimate_id = models.TextField(null=True, blank=True)
     local_costEstimate_id = models.TextField()
     expenses_name = models.TextField()
-    quarter = models.TextField()    
+    quarter = models.TextField(null=True, blank=True)    
     # Поля для различных типов стоимости
     construction_cost = models.TextField(null=True, blank=True, verbose_name="Стоимость строительных работ")
     installation_cost = models.TextField(null=True, blank=True, verbose_name="Стоимость монтажных работ")
@@ -115,6 +115,7 @@ class TempTableССКUNC(models.Model):
     id = models.AutoField(primary_key=True)
     temp_table_id = models.ForeignKey(TempTable, on_delete=models.CASCADE)
     temp_table_unc_id = models.ForeignKey(TempTableUNC, on_delete=models.CASCADE)
+    key_id = models.ForeignKey('ExpensesToEpcMap', on_delete=models.CASCADE)
     matched_keyword = models.TextField()  # Ключевое слово, по которому произошло связывание
     additional_info = models.TextField(null=True, blank=True)  # Дополнительная информация о связывании
 
@@ -144,6 +145,7 @@ class ObjectAnalog(models.Model):
     unit = models.TextField()
     matched_keyword = models.TextField()  # Ключевое слово, по которому произошло связывание
     additional_info = models.TextField(null=True, blank=True)  # Дополнительная информация о связывании
+    key_id = models.ForeignKey('ExpensesToEpcMap', on_delete=models.CASCADE, null=True, blank=True)
     is_check = models.BooleanField(default=False, verbose_name="Проверено")
     description = models.TextField(null=True, blank=True)
 

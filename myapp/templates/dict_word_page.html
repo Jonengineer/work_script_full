@@ -17,6 +17,15 @@
   {% endblock %}   
   <body>
     {% block header %}
+    {% if messages %}
+    <ul class="message-list">
+        {% for message in messages %}
+        <li class="{% if message.tags %} {{ message.tags }} {% endif %}">
+            {{ message }}
+        </li>
+        {% endfor %}
+        </ul>
+    {% endif %}
     <div class="row">
       <div class="content-btn">
         <a href="{% url 'myapp:CCP_UNC_page' %}" class="waves-effect waves-light btn">Назад</a>
@@ -58,16 +67,31 @@
                     <th>№ п\п</th>
                     <th>Наименование позиции РПС</th>
                     <th>Ключевое слово технической характеристики</th>
+                    <th>Редактировать</th>
+                    <th>Сохранить</th>
                 </tr>
             </thead>
             <tbody>
                 {% for record in dict_word %}
+                  <form method="post" id="form-{{ record.expenses_to_epc_map_id }}" action="{% url 'myapp:edit_expense_to_epc' expense_id=record.expenses_to_epc_map_id %}">
+                  {% csrf_token %}
                     <tr>
                         <td>{{ record.expenses_to_epc_map_id }}</td>
-                        <td>{{ record.expenses_to_epc_map_name }}</td>
-                        <td>{{ record.expenses_to_epc_map_epc }}</td>        
-                    </tr>       
-                {% endfor %}
+                        <td>
+                          <span id="name-text-{{ record.expenses_to_epc_map_id }}">{{ record.expenses_to_epc_map_name }}</span>
+                          <input type="text" name="expense_name" id="name-input-{{ record.expenses_to_epc_map_id }}" value="{{ record.expenses_to_epc_map_name }}" style="display: none;">
+                        </td>
+                        <td>
+                          <span id="epc-text-{{ record.expenses_to_epc_map_id }}">{{ record.expenses_to_epc_map_epc }}</span>
+                          <input type="text" name="expense_epc" id="epc-input-{{ record.expenses_to_epc_map_id }}" value="{{ record.expenses_to_epc_map_epc }}" style="display: none;">
+                        </td> 
+                        <td>
+                          <a href="#" class="waves-effect waves-light btn edit-btn" data-id="{{ record.expenses_to_epc_map_id }}">Редактировать</a>
+                          <button type="submit" id="save-btn-{{ record.expenses_to_epc_map_id }}" class="waves-effect waves-light btn save" style="display: none;">Сохранить</button>
+                        </td>      
+                    </tr>   
+                  </form>    
+                {% endfor %}  
             </tbody>
           </table>
         </div>        
@@ -80,7 +104,30 @@
     {% block scripts %}  
       <!-- Подключение jQuery -->
       <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-      <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>       
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script> 
+      <script>
+        document.addEventListener('DOMContentLoaded', function() {
+          const editButtons = document.querySelectorAll('.edit-btn');
+          
+          editButtons.forEach(function(button) {
+            button.addEventListener('click', function(event) {
+                event.preventDefault();
+                const recordId = this.getAttribute('data-id');
+                
+                // Скрываем текстовые поля и показываем инпуты для редактирования
+                document.getElementById('name-text-' + recordId).style.display = 'none';
+                document.getElementById('epc-text-' + recordId).style.display = 'none';
+                document.getElementById('name-input-' + recordId).style.display = 'block';
+                document.getElementById('epc-input-' + recordId).style.display = 'block';   
+
+                // Скрываем кнопку "Редактировать" и показываем кнопку "Сохранить"
+                this.style.display = 'none';
+                document.getElementById('save-btn-' + recordId).style.display = 'block';
+                
+            });
+          });
+      });
+    </script>
     {% endblock %}    
     
   </body>
