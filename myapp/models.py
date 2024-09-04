@@ -63,6 +63,21 @@ class TempTableUNC(models.Model):
     class Meta:
         db_table = 'temp_table_unc'       
 
+class TempTableLocal(models.Model):
+    parsed_local_estimate_id = models.AutoField(primary_key=True)  # Основной ключ
+    temp_table = models.ForeignKey('TempTable', on_delete=models.CASCADE, related_name='parsed_data')  # Связь с таблицей TempTable
+    row_number = models.IntegerField(verbose_name="Номер строки")  # Поле для хранения номера строки из TempTable
+    row_data = models.JSONField(verbose_name="Данные строки в формате JSON")  # Поле для хранения данных строки в формате JSON
+
+    class Meta:
+        db_table = 'temp_table_local'
+        verbose_name = 'Данные парсинга локальной сметы'
+        verbose_name_plural = 'Данные парсинга локальных смет'
+
+    def __str__(self):
+        return f"Parsed Data ID: {self.parsed_local_estimate_id} - (Строка: {self.row_number})"
+
+
 class TempTableССКUNC(models.Model):
     id = models.AutoField(primary_key=True)
     temp_table_id = models.ForeignKey(TempTable, on_delete=models.CASCADE)
@@ -261,6 +276,20 @@ class LocalCostEstimate(models.Model):
 
     def __str__(self):
         return f"Local Cost Estimate ID: {self.local_cost_estimate_id}"
+
+class LocalEstimateData(models.Model):
+    parsed_local_estimate_id = models.AutoField(primary_key=True)  # Основной ключ
+    local_cost_estimate = models.ForeignKey('LocalCostEstimate', on_delete=models.CASCADE, related_name='parsed_data')  # Связь с локальной сметой
+    row_number = models.IntegerField(verbose_name="Номер строки")  # Поле для хранения номера строки
+    row_data = models.JSONField(verbose_name="Данные строки в формате JSON")  # Поле для хранения данных строки в формате JSON
+
+    class Meta:
+        db_table = 'local_estimate_data'
+        verbose_name = 'Данные парсинга локальной сметы'
+        verbose_name_plural = 'Данные парсинга локальных смет'
+
+    def __str__(self):
+        return f"Parsed Data ID: {self.parsed_local_estimate_id} - {self.local_cost_estimate.local_cost_estimate_code} (Строка: {self.row_number})"
 
 class Expenses(models.Model):
     expense_id = models.AutoField(primary_key=True)  # SERIAL, основной ключ

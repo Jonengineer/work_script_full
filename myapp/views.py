@@ -1,7 +1,7 @@
 from django.shortcuts import render
 from .models import (TempTable, DictSecChapter, TempTableUNC, TempTableССКUNC, ExpensesToEpcMap, ExpensesToEpcMap, 
                      ObjectAnalog, InvestProject, Object, EpcCalculation, EpcCosts, SummaryEstimateCalculation,
-                     ObjectCostEstimate, LocalCostEstimate, Expenses, ExpensesByEpc
+                     ObjectCostEstimate, LocalCostEstimate, Expenses, ExpensesByEpc, TempTableLocal, LocalEstimateData
                     )
 import pandas as pd
 import re
@@ -15,6 +15,7 @@ from django.db.models import Count, Q
 from .forms import ObjectAnalogForm
 import logging
 import csv
+import numpy as np
 
 logging.basicConfig(
     filename='debug.log',  # Имя файла, куда будут записываться логи
@@ -142,6 +143,44 @@ def edit_expense_to_epc(request, expense_id):
         'expense': expense_full,
     }
     return render(request, 'dict_word_page.html', context)
+
+# Парсинг локалных смет
+def parse_local_estimate_sheet(request, match_code, uploaded_file, temp_table_record):
+    try:
+        # Открываем файл Excel, получаем имена всех листов
+        xls = pd.ExcelFile(uploaded_file)
+
+        # Ищем вкладку, которая содержит идентификатор сметы match_code
+        target_sheet_name = None
+        for sheet_name in xls.sheet_names:
+            if match_code in sheet_name:
+                target_sheet_name = sheet_name
+                break
+
+        if not target_sheet_name:
+            messages.error(request, f"Ошибка при парсинге локальной сметы. Вкладка с кодом {match_code} не найдена.")
+            return
+
+        # Чтение данных из найденной вкладки
+        df = pd.read_excel(xls, sheet_name=target_sheet_name)
+
+        # Заменяем NaN на None (null в JSON)
+        df = df.replace({np.nan: None})
+
+        # Проходим по строкам этой вкладки и сохраняем данные в TempTableLocal
+        for index, row in df.iterrows():
+            row_values = row.to_dict()  # Преобразуем строку в словарь
+
+            # Записываем данные в TempTableLocal
+            TempTableLocal.objects.create(
+                temp_table=temp_table_record,
+                row_number=index + 1,  # Номер строки
+                row_data=row_values  # Данные строки в формате JSON
+            )
+        messages.success(request, f"Данные из вкладки '{target_sheet_name}' успешно сохранены в TempTableLocal.")
+    
+    except Exception as e:
+        messages.error(request, f"Ошибка при парсинге локальной сметы {match_code}: {e}")
 
 
 # Удаление ключевого слова
@@ -431,16 +470,16 @@ def add_CCR(request):
                     'row_values': row_values
                 })
 
-            # Шаг 2.1: Запись rows_data в CSV-файл
-            with open("output.csv", "w", newline='') as file:
-                writer = csv.writer(file)
+            # # Шаг 2.1: Запись rows_data в CSV-файл
+            # with open("output.csv", "w", newline='') as file:
+            #     writer = csv.writer(file)
                 
-                # Запись заголовка
-                writer.writerow(['Index', 'Row Values'])
+            #     # Запись заголовка
+            #     writer.writerow(['Index', 'Row Values'])
                 
-                # Запись данных
-                for row_data in rows_data:
-                    writer.writerow([row_data['index'], ", ".join(map(str, row_data['row_values']))])
+            #     # Запись данных
+            #     for row_data in rows_data:
+            #         writer.writerow([row_data['index'], ", ".join(map(str, row_data['row_values']))])
 
                 
             # Шаг 3: Обработка данных из списка
@@ -542,7 +581,7 @@ def add_CCR(request):
                     try:
                         cost_estimate_id = row_values[1].replace(' ', '')                       
                                                 
-                        if re.search(r'\bОСР\b', cost_estimate_id) or re.search(r'^\d{2}-\d{2}$', cost_estimate_id):  
+                        if re.search(r'\bОСР\b', cost_estimate_id) or re.search(r'^\d{2}-\d{2}$', cost_estimate_id) or re.search(r'^ОСР\d{2}-\d{2}$', cost_estimate_id):  
                             match = re.search(r'\b\d{2}-\d{2}\b', cost_estimate_id)                          
                             row_data = {
                                 'chapter_id': current_chapter,
@@ -556,8 +595,8 @@ def add_CCR(request):
                                 'total_cost': row_values[7] if row_values[7] else None,
                             }
 
-                        elif re.search(r'\bЛСР\b', cost_estimate_id) or re.search(r'\bЛС\b', cost_estimate_id) or re.search(r'^\d{2}-\d{2}-\d{2}$', cost_estimate_id):
-                            match = re.search(r'^\d{2}-\d{2}-\d{2}$', cost_estimate_id)     
+                        elif re.search(r'\bЛСР\b', cost_estimate_id) or re.search(r'\bЛС\b', cost_estimate_id) or re.search(r'^\d{2}-\d{2}-\d{2}$', cost_estimate_id) or re.search(r'^ЛСР\d{2}-\d{2}-\d{2}$', cost_estimate_id):
+                            match = re.search(r'\d{2}-\d{2}-\d{2}$', cost_estimate_id)     
                             row_data = {
                                 'chapter_id': current_chapter,
                                 'object_costEstimate_id': None,
@@ -569,6 +608,8 @@ def add_CCR(request):
                                 'other_cost': row_values[6] if row_values[6] else None,
                                 'total_cost': row_values[7] if row_values[7] else None,
                             }
+
+                            
                         else:
                             row_data = {
                                 'chapter_id': current_chapter,
@@ -593,8 +634,9 @@ def add_CCR(request):
 
             # Сохранение данных после последней главы
             if rows_to_insert:
+                print(f'Количество строк для вставки: {len(rows_to_insert)}')
                 for r in rows_to_insert:
-                    TempTable.objects.create(
+                    temp_table_record = TempTable.objects.create(
                         chapter_id=previous_chapter_instance,
                         quarter=quarter_row,
                         object_costEstimate_id=r['object_costEstimate_id'],
@@ -622,6 +664,19 @@ def add_CCR(request):
                         other_cost=clean_decimal_value(r['other_cost']),
                         total_cost=clean_decimal_value(r['total_cost'])
                     )
+
+            # Второй этап: Проход по всем записям с локальными сметами и вызов парсинга
+            print('Начинаем парсинг локальных смет...')
+            local_estimates = TempTable.objects.filter(local_costEstimate_id__isnull=False)
+
+            for estimate in local_estimates:
+                try:
+                    LCR = estimate.local_costEstimate_id
+                    print(f'Вызываем парсинг для {LCR}')
+                    parse_local_estimate_sheet(request, LCR, uploaded_file, estimate)
+                except Exception as e:
+                    print(f'Ошибка при парсинге локальной сметы {LCR}: {e}')
+
 
             return redirect('myapp:start')
 
@@ -658,8 +713,7 @@ def add_UNC(request):
                     elif "Наименование УНЦ" in str(row.iloc[5]):
                         row_type = 2  # Тип №2
                     else:
-                        messages.warning(
-                            request, f"Не удалось определить тип строки на строке {index + 1}")
+                        messages.warning(request, f"Не удалось определить тип строки на строке {index + 1}")
 
                 # Ожидаемая последовательность от 1 до 16
                 expected_sequence = list(map(str, range(1, 8)))
@@ -752,7 +806,6 @@ def add_UNC(request):
                             }
 
                         rows_to_insert.append(row_data)
-                        messages.info(request, f"Найдена и добавлена строка данных на строке {index + 1}")
                     except Exception as e:
                         messages.error(request, f"Ошибка при обработке строки {index + 1}: {e}")
 
@@ -1018,7 +1071,6 @@ def save_all_object_analogs_CCR(request, project_id):
 # Связывание_2
 def add_UNC_CCR_2(request):
     try:
-        print("Начало работы функции add_UNC_CCR")
         # Шаг 1: Загрузка всех ключевых слов из справочника
         key_phrases = ExpensesToEpcMap.objects.all()
     except Exception as e:
@@ -1028,7 +1080,6 @@ def add_UNC_CCR_2(request):
     unc_keyword_map = {}
     try:
         # Шаг 2: Проход по записям EpcCosts и определение ключевых слов
-        print("Проход по записям EpcCosts и определение ключевых слов")
         for epc_cost_record in EpcCosts.objects.all():
             matching_keywords = []
             cleaned_name_unc = clean_string(epc_cost_record.name_unc)            
@@ -1046,20 +1097,17 @@ def add_UNC_CCR_2(request):
 
     try:
         # Шаг 3: Проход по записям Expenses и поиск соответствий
-        print("Проход по записям Expenses и поиск соответствий")
         for epc_cost_record, keywords in unc_keyword_map.items():
             for keyword, keyword_2, key_phrase_obj in keywords:
                 for expense_record in Expenses.objects.all():
 
                     # Пропускаем записи, у которых заполнено поле object_cost_estimate
                     if expense_record.object_cost_estimate is not None:
-                        print(f"Пропущена объектная смета: {expense_record.expense_id}")
                         continue
 
                     cleaned_expenses_name = clean_string(expense_record.expense_nme)
 
                     if keyword in cleaned_expenses_name:
-                        print(f"Найдено соответствие: {expense_record}")
 
                         # Проверка на наличие дубликатов
                         existing_record = ExpensesByEpc.objects.filter(
@@ -1068,7 +1116,6 @@ def add_UNC_CCR_2(request):
                         ).exists()
 
                         # Шаг 4: Сохранение результата в ExpensesByEpc
-                        print(f"existing_record: {existing_record}")
                         if not existing_record:
                             try:
                                 ExpensesByEpc.objects.create(
@@ -1079,9 +1126,9 @@ def add_UNC_CCR_2(request):
                                     expenses_to_epc_map_id=key_phrase_obj,
                                     expenses_by_epc_nme=keyword,
                                 )
-                                print(f"Сохранено: epc_cost_record={epc_cost_record.epc_costs_id}, expense_id={expense_record.expense_id}")
+
                             except Exception as e:
-                                print(f"Ошибка при сохранении: {e}")
+                                messages.error(request, f"Ошибка при сохранении: {e}")                            
     except Exception as e:
         messages.error(request, f"Ошибка при сохранении результатов: {e}")
         return redirect('myapp:CCP_UNC_page')
@@ -1135,7 +1182,6 @@ def re_add_UNC_CCR_2(request, project_id):
 def migrate_data_to_main_tables(request):
     try:
         # Группировка данных по проектам из TempTable
-        print("Начало миграции данных...")
         projects = TempTableUNC.objects.values('project_id', 'project_name').distinct()
 
         # Группировка объектов по полю name_object из TempTableUNC
@@ -1174,10 +1220,8 @@ def migrate_data_to_main_tables(request):
                 print(f"Проект уже существует: {invest_project}")
 
 
-            print(f"объекты: {objects_data}")
             for obj_data in objects_data:
                 name_object = obj_data['name_object']
-                print(f"Обработка объекта с именем: {name_object}")
 
                 # Создание объекта
                 obj, created = Object.objects.get_or_create(
@@ -1205,7 +1249,6 @@ def migrate_data_to_main_tables(request):
                 epc_calculation = EpcCalculation.objects.create(
                     object=obj
                 )
-                print(f"Создана запись в EpcCalculation: {epc_calculation}")
 
                 # Создание записей в EpcCosts
                 epc_costs_data = TempTableUNC.objects.filter(name_object=name_object)
@@ -1222,14 +1265,11 @@ def migrate_data_to_main_tables(request):
                     count=epc_cost_data.count,  # Обращаемся к полю через точку
                     unit=epc_cost_data.unit  # Обращаемся к полю через точку
                     )
-                    print(f"Создана запись в EpcCosts: {epc_cost}")
 
             # Обработка данных из TempTable
             temp_data = TempTable.objects.all()
-            print(f"Найдено {temp_data.count()} записей в TempTable для проекта ID: {project_id}")
 
             for data in temp_data:
-                print(f"Обработка записи TempTable ID: {data.id}")
                 summary_estimate_calculation, created = SummaryEstimateCalculation.objects.get_or_create(
                     invest_project=invest_project,
                     defaults={
@@ -1237,17 +1277,14 @@ def migrate_data_to_main_tables(request):
                         'sum_est_calc_before_ded': None,
                     }
                 )
-                print(f"Создана запись в SummaryEstimateCalculation: {summary_estimate_calculation}")
 
                 # Создание записи в ObjectCostEstimate, если есть object_costEstimate_id
                 object_cost_estimate = None
-                print(f"Информация в  ObjectCostEstimate: {data.object_costEstimate_id}")
                 if data.object_costEstimate_id:
                     object_cost_estimate = ObjectCostEstimate.objects.create(
                         summary_estimate_calculation=summary_estimate_calculation if summary_estimate_calculation else None,
                         object_cost_estimate_code=data.object_costEstimate_id
                     )
-                    print(f"Создана запись в ObjectCostEstimate: {object_cost_estimate}")
 
                 # Создание записи в LocalCostEstimate, если есть local_costEstimate_id
                 local_cost_estimate = None
@@ -1260,12 +1297,21 @@ def migrate_data_to_main_tables(request):
                         object_cost_estimate_code=object_cost_estimate_prefix
                     ).first()
 
-                    local_cost_estimate = LocalCostEstimate.objects.create(
+                    local_cost_estimate, created = LocalCostEstimate.objects.get_or_create(
                         object_cost_estimate=linked_object_cost_estimate if linked_object_cost_estimate else object_cost_estimate,
                         summary_estimate_calculation=summary_estimate_calculation if summary_estimate_calculation else None,
                         local_cost_estimate_code=data.local_costEstimate_id
                     )
-                    print(f"Создана запись в LocalCostEstimate: {local_cost_estimate}")
+
+                    # Теперь переносим данные из TempTableLocal в LocalEstimateData
+                    temp_table_locals = TempTableLocal.objects.filter(temp_table=data).order_by('row_number')
+
+                    for temp_table_local in temp_table_locals:
+                                LocalEstimateData.objects.create(
+                                    local_cost_estimate=local_cost_estimate,
+                                    row_number=temp_table_local.row_number,
+                                    row_data=temp_table_local.row_data
+                                )
                     
                 if pd.notna(data.expenses_name) and data.expenses_name not in ('', '0', 'nan'):
                     print(data.expenses_name)
@@ -1284,9 +1330,6 @@ def migrate_data_to_main_tables(request):
                         total_cost=data.total_cost,
                         chapter_id=data.chapter_id
                     )
-                    print(f"Создана запись в Expenses: {expense}")
-
-        print("Данные успешно перенесены из временных таблиц в основные таблицы.")
 
         # Вызов функции связывания после миграции данных
         add_UNC_CCR_2(request)
