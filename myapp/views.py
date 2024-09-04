@@ -1,5 +1,8 @@
 from django.shortcuts import render
-from .models import TempTable, DictSecChapter, TempTableUNC, TempTableССКUNC, ExpensesToEpcMap, ExpensesToEpcMap, ObjectAnalog
+from .models import (TempTable, DictSecChapter, TempTableUNC, TempTableССКUNC, ExpensesToEpcMap, ExpensesToEpcMap, 
+                     ObjectAnalog, InvestProject, Object, EpcCalculation, EpcCosts, SummaryEstimateCalculation,
+                     ObjectCostEstimate, LocalCostEstimate, Expenses, ExpensesByEpc
+                    )
 import pandas as pd
 import re
 from django.shortcuts import get_object_or_404, redirect
@@ -11,6 +14,7 @@ from django.db import transaction
 from django.db.models import Count, Q
 from .forms import ObjectAnalogForm
 import logging
+import csv
 
 logging.basicConfig(
     filename='debug.log',  # Имя файла, куда будут записываться логи
@@ -140,8 +144,6 @@ def edit_expense_to_epc(request, expense_id):
     return render(request, 'dict_word_page.html', context)
 
 
-
-
 # Удаление ключевого слова
 def delete_expense_to_epc(request):
     if request.method == 'POST':
@@ -208,6 +210,21 @@ def delete_object_analog(request, project_id):
     # Укажите правильный URL-имя для редиректа
     return redirect('myapp:object_analog')
 
+# Удаление ОА_2
+def delete_object_analog_2(request, project_id):
+    try:
+        # Удаляем все записи, связанные с данным проектом
+        deleted_count, _ = InvestProject.objects.filter(invest_project_id=project_id).delete()
+
+        # Сообщаем пользователю об успешном удалении
+    except Exception as e:
+        # Если произошла ошибка, сообщаем об этом пользователю
+        messages.error(request, f"Ошибка при удалении записей для проекта с ID {project_id}: {e}")
+
+    # Перенаправляем пользователя на страницу после выполнения операции
+    messages.success(request, f"Успешно удалено {deleted_count} записей для проекта с ID {project_id}")
+    # Укажите правильный URL-имя для редиректа
+    return redirect('myapp:object_analog_2')
 
 # Стартовая страница
 def start_page(request):
@@ -304,11 +321,48 @@ def object_analog(request):
 
     return render(request, 'object_anlog.html', context)
 
+# Объектs аналог_2
+def object_analog_2(request):
+    # Получаем все проекты
+    projects = InvestProject.objects.all()
+
+    # Словарь для хранения данных о проектах
+    project_data = []
+
+    for project in projects:
+        # Подсчитываем количество позиций в сметах для текущего проекта
+        total_expenses = Expenses.objects.filter(summary_estimate_calculation__invest_project=project).count()
+
+        # Подсчитываем количество связанных позиций
+        related_positions = ExpensesByEpc.objects.filter(expense_id__summary_estimate_calculation__invest_project=project).distinct().count()
+
+        # Подсчитываем количество проверенных позиций
+        checked_positions_expenses = Expenses.objects.filter(summary_estimate_calculation__invest_project=project, is_check=True).distinct().count()
+
+        # Подсчитываем количество проверенных позиций
+        checked_positions_expensesbyepc = ExpensesByEpc.objects.filter(expense_id__summary_estimate_calculation__invest_project=project, is_check=True).distinct().count()
+
+        # Добавляем данные в список
+        project_data.append({
+            'project': project,
+            'num_records': total_expenses,
+            'num_records_TX': related_positions,
+            'num_checked': checked_positions_expenses,
+            'num_checked_byepc': checked_positions_expensesbyepc,
+        })
+
+    context = {
+        'projects': project_data,
+    }
+
+    return render(request, 'object_anlog_2.html', context)
+
 # Содержание Объекта аналога
 def object_analog_content(request, project_id):
     # Фильтрация строк по идентификатору проекта и сортировка по идентификатору главы
-    all_object_analog = ObjectAnalog.objects.filter(
-        project_id=project_id).order_by('chapter_id')
+    all_object_analog = ObjectAnalog.objects.filter(project_id=project_id).order_by('chapter_id')
+    
+
 
     context = {
         'all_object_analog': all_object_analog,
@@ -318,6 +372,46 @@ def object_analog_content(request, project_id):
 
     return render(request, 'object_anlog_content.html', context)
 
+# Содержание Объекта аналога
+def object_analog_content_2(request, project_id):
+    # Получаем объект проекта по project_id
+    invest_project = get_object_or_404(InvestProject, pk=project_id)
+
+    # Получаем все объекты, связанные с этим проектом
+    objects = Object.objects.filter(invest_project=invest_project)
+
+    # Получаем все сводные сметы расчета, связанные с объектами этого проекта
+    summary_estimates = SummaryEstimateCalculation.objects.get(invest_project=invest_project)
+
+    expense_ids_in_epc = ExpensesByEpc.objects.filter(epc_costs_id__object__in=objects
+                    ).values_list('expense_id', flat=True).distinct()  
+
+    filtered_expenses = Expenses.objects.filter(summary_estimate_calculation=summary_estimates).exclude(expense_id__in=expense_ids_in_epc
+                    ).order_by('chapter_id__dict_sec_chapter_id').distinct()
+
+    # Получаем ID всех EpcCosts, которые связаны с ExpensesByEpc
+    epc_cost_ids_in_expenses = ExpensesByEpc.objects.values_list('epc_costs_id', flat=True)
+
+    # Исключаем те EpcCosts, которые уже присутствуют в ExpensesByEpc
+    epccosts_expenses = EpcCosts.objects.filter(object__in=objects).exclude(epc_costs_id__in=epc_cost_ids_in_expenses)
+
+    # Получаем все затраты по EPC, связанные с этими сводными сметами расчета
+    expenses_by_epc_items = ExpensesByEpc.objects.filter(epc_costs_id__object__in=objects
+                                ).select_related('expense_id', 'epc_costs_id').order_by(
+                                'expense_id__chapter_id__dict_sec_chapter_id', 
+                                'expense_id__local_cost_estimate__local_cost_estimate_code'
+                            )
+
+    context = {
+        'project_id': project_id,
+        'invest_project': invest_project,
+        'all_object_analog': expenses_by_epc_items,
+        'filtered_expenses': filtered_expenses,
+        'epccosts_expenses': epccosts_expenses,
+    }
+    
+    return render(request, 'object_anlog_content_2.html', context)
+                            
 
 # Импорт CCR
 def add_CCR(request):
@@ -337,6 +431,18 @@ def add_CCR(request):
                     'row_values': row_values
                 })
 
+            # Шаг 2.1: Запись rows_data в CSV-файл
+            with open("output.csv", "w", newline='') as file:
+                writer = csv.writer(file)
+                
+                # Запись заголовка
+                writer.writerow(['Index', 'Row Values'])
+                
+                # Запись данных
+                for row_data in rows_data:
+                    writer.writerow([row_data['index'], ", ".join(map(str, row_data['row_values']))])
+
+                
             # Шаг 3: Обработка данных из списка
             current_chapter = None
             previous_chapter_instance = None
@@ -434,32 +540,46 @@ def add_CCR(request):
 
                 if current_chapter is not None:
                     try:
-                        object_cost_estimate_id = row_values[1]
-                        print(f"Проверяем строку: {object_cost_estimate_id}")
-                        if re.search(r'\bОСР\b', object_cost_estimate_id) or re.search(r'^\d{2}-\d{2}$', object_cost_estimate_id):
-                            print(f"Строка соответствует условию: {object_cost_estimate_id}")
+                        cost_estimate_id = row_values[1].replace(' ', '')                       
+                                                
+                        if re.search(r'\bОСР\b', cost_estimate_id) or re.search(r'^\d{2}-\d{2}$', cost_estimate_id):  
+                            match = re.search(r'\b\d{2}-\d{2}\b', cost_estimate_id)                          
                             row_data = {
                                 'chapter_id': current_chapter,
-                                'object_costEstimate_id': row_values[1],
-                                'local_costEstimate_id': row_values[1],
-                                'expenses_name': row_values[2],
-                                'construction_cost': row_values[3],
-                                'installation_cost': row_values[4],
-                                'equipment_cost': row_values[5],
-                                'other_cost': row_values[6],
-                                'total_cost': row_values[7],
+                                'object_costEstimate_id': match.group(0),
+                                'local_costEstimate_id': None,
+                                'expenses_name': row_values[2] if row_values[2] else None,
+                                'construction_cost': row_values[3] if row_values[3] else None,
+                                'installation_cost': row_values[4] if row_values[4] else None,
+                                'equipment_cost': row_values[5] if row_values[5] else None,
+                                'other_cost': row_values[6] if row_values[6] else None,
+                                'total_cost': row_values[7] if row_values[7] else None,
+                            }
+
+                        elif re.search(r'\bЛСР\b', cost_estimate_id) or re.search(r'\bЛС\b', cost_estimate_id) or re.search(r'^\d{2}-\d{2}-\d{2}$', cost_estimate_id):
+                            match = re.search(r'^\d{2}-\d{2}-\d{2}$', cost_estimate_id)     
+                            row_data = {
+                                'chapter_id': current_chapter,
+                                'object_costEstimate_id': None,
+                                'local_costEstimate_id': match.group(0),
+                                'expenses_name': row_values[2] if row_values[2] else None,
+                                'construction_cost': row_values[3] if row_values[3] else None,
+                                'installation_cost': row_values[4] if row_values[4] else None,
+                                'equipment_cost': row_values[5] if row_values[5] else None,
+                                'other_cost': row_values[6] if row_values[6] else None,
+                                'total_cost': row_values[7] if row_values[7] else None,
                             }
                         else:
                             row_data = {
                                 'chapter_id': current_chapter,
-                                'object_costEstimate_id': 0,  
-                                'local_costEstimate_id': row_values[1],
-                                'expenses_name': row_values[2],
-                                'construction_cost': row_values[3],
-                                'installation_cost': row_values[4],
-                                'equipment_cost': row_values[5],
-                                'other_cost': row_values[6],
-                                'total_cost': row_values[7],
+                                'object_costEstimate_id': None,  
+                                'local_costEstimate_id': None,
+                                'expenses_name': row_values[2] if row_values[2] else None,
+                                'construction_cost': row_values[3] if row_values[3] else None,
+                                'installation_cost': row_values[4] if row_values[4] else None,
+                                'equipment_cost': row_values[5] if row_values[5] else None,
+                                'other_cost': row_values[6] if row_values[6] else None,
+                                'total_cost': row_values[7] if row_values[7] else None,
                             }
 
                         # Если строка найдена после "Итого по главе", добавляем ее в additional_rows
@@ -824,109 +944,356 @@ def save_all_object_analogs(request, project_id):
         messages.success(request, "Все изменения сохранены.")
         return redirect('myapp:object_analog_content', project_id=project_id)
 
-# Миграция данных обратно для связывания
-def migrate_object_analog_to_temp_tables(request, project_id):
+# Сохранение всех строк ОА в связанных ССР
+def save_all_object_analogs_CCR_UNC(request, project_id):
+
+    if request.method == 'POST':
+        all_expenses_by_epc = ExpensesByEpc.objects.filter(expense_id__summary_estimate_calculation__invest_project_id=project_id)
+
+        for record in all_expenses_by_epc:
+            # Проверяем наличие флага проверки
+            is_checked = f'check_{record.expenses_by_epc_id}' in request.POST
+            description = request.POST.get(f'description_{record.expenses_by_epc_id}', '')
+
+            # Обновляем данные
+            record.is_check = is_checked
+            record.description = description
+            record.save()
+
+        messages.success(request, "Все изменения сохранены.")
+        return redirect('myapp:object_analog_content_2', project_id=project_id)
+
+# Сохранение всех строк ОА в связанных ССР_УНЦ
+def save_all_object_analogs_CCR(request, project_id):
+
+    if request.method == 'POST':
+        all_expenses_by_epc = ExpensesByEpc.objects.filter(expense_id__summary_estimate_calculation__invest_project_id=project_id)
+
+        for record in all_expenses_by_epc:
+            # Проверяем наличие флага проверки
+            is_checked = f'check_{record.expenses_by_epc_id}' in request.POST
+            description = request.POST.get(f'description_{record.expenses_by_epc_id}', '')
+
+            # Обновляем данные
+            record.is_check = is_checked
+            record.description = description
+            record.save()
+
+        messages.success(request, "Все изменения сохранены.")
+        return redirect('myapp:object_analog_content_2', project_id=project_id)
+
+# Сохранение всех строк ОА в связанных ССР
+def save_all_object_analogs_CCR(request, project_id):
+    if request.method == 'POST':
+        # Обработка записей ExpensesByEpc
+        all_expenses_by_epc = ExpensesByEpc.objects.filter(expense_id__summary_estimate_calculation__invest_project_id=project_id)
+
+        for record in all_expenses_by_epc:
+            # Проверяем наличие флага проверки
+            is_checked = f'check_{record.expenses_by_epc_id}' in request.POST
+            description = request.POST.get(f'description_{record.expenses_by_epc_id}', '')
+
+            # Обновляем данные
+            record.is_check = is_checked
+            record.description = description
+            record.save()
+
+        # Обработка записей Expenses
+        all_expenses = Expenses.objects.filter(summary_estimate_calculation__invest_project_id=project_id)
+
+        for record in all_expenses:
+            # Проверяем наличие флага проверки
+            is_checked = f'check_{record.expense_id}' in request.POST
+            description = request.POST.get(f'description_{record.expense_id}', '')
+
+            # Обновляем данные
+            record.is_check = is_checked
+            record.description = description
+            record.save()
+
+        messages.success(request, "Все изменения сохранены.")
+        return redirect('myapp:object_analog_content_2', project_id=project_id)
+
+
+# Связывание_2
+def add_UNC_CCR_2(request):
     try:
-        with transaction.atomic():
-            # Очистка таблиц TempTable и TempTableUNC перед миграцией
-            TempTable.objects.all().delete()
-            TempTableUNC.objects.all().delete()
-
-            temp_table_records = []
-            temp_table_unc_records = []
-
-            # Перенос данных из ObjectAnalog в TempTable и TempTableUNC
-            for analog_record in ObjectAnalog.objects.filter(project_id=project_id):
-                # Проверка наличия аналогичной записи в TempTable
-                if not TempTable.objects.filter(
-                    project_id=analog_record.project_id,
-                    chapter_id=analog_record.chapter_id,
-                    object_costEstimate_id=analog_record.object_costEstimate_id,
-                    local_costEstimate_id=analog_record.local_costEstimate_id,
-                    expenses_name=analog_record.expenses_name,
-                    quarter=analog_record.quarter,
-                    construction_cost=analog_record.construction_cost,
-                    installation_cost=analog_record.installation_cost,
-                    equipment_cost=analog_record.equipment_cost,
-                    other_cost=analog_record.other_cost,
-                    total_cost=analog_record.total_cost
-                ).exists():
-                    # Добавление записи в список для последующей массовой вставки
-                    temp_table_records.append(
-                        TempTable(
-                            project_id=analog_record.project_id,
-                            chapter_id=analog_record.chapter_id,
-                            object_costEstimate_id=analog_record.object_costEstimate_id,
-                            local_costEstimate_id=analog_record.local_costEstimate_id,
-                            expenses_name=analog_record.expenses_name,
-                            quarter=analog_record.quarter,
-                            construction_cost=analog_record.construction_cost,
-                            installation_cost=analog_record.installation_cost,
-                            equipment_cost=analog_record.equipment_cost,
-                            other_cost=analog_record.other_cost,
-                            total_cost=analog_record.total_cost,
-                        )
-                    )
-
-                # Проверка наличия аналогичной записи в TempTableUNC
-                if not TempTableUNC.objects.filter(
-                    project_id=analog_record.project_id,
-                    project_name=analog_record.project_name,
-                    name_unc=analog_record.name_unc,
-                    name_object=analog_record.name_object,
-                    voltage=analog_record.voltage,
-                    TX=analog_record.TX,
-                    count=analog_record.count,
-                    unit=analog_record.unit,
-                    unc_code=analog_record.unc_code
-                ).exists():
-                    # Добавление записи в список для последующей массовой вставки
-                    temp_table_unc_records.append(
-                        TempTableUNC(
-                            project_id=analog_record.project_id,
-                            project_name=analog_record.project_name,
-                            name_unc=analog_record.name_unc,
-                            name_object=analog_record.name_object,
-                            voltage=analog_record.voltage,
-                            TX=analog_record.TX,
-                            count=analog_record.count,
-                            unit=analog_record.unit,
-                            unc_code=analog_record.unc_code,
-                        )
-                    )
-
-            # Массовая вставка записей в TempTable и TempTableUNC
-            TempTable.objects.bulk_create(temp_table_records)
-            TempTableUNC.objects.bulk_create(temp_table_unc_records)
-
-        return True
-
+        print("Начало работы функции add_UNC_CCR")
+        # Шаг 1: Загрузка всех ключевых слов из справочника
+        key_phrases = ExpensesToEpcMap.objects.all()
     except Exception as e:
-        print(f"Ошибка при переносе данных: {e}")
-        return False
-
-# Функция пересвязывания
-def re_add_UNC_CCR(request, project_id):
-    try:
-        # Шаг 1: Перенос данных из ObjectAnalog в TempTable и TempTableUNC только для данного проекта
-        print('Шаг № 1')
-        migrate_success = migrate_object_analog_to_temp_tables(request, project_id)
-        if not migrate_success:
-            return False  
-
-        # # Шаг 2: Выполнение связывания на основе TempTable и TempTableUNC только для данного проекта
-        print('Шаг № 2')
-        unc_ccr_response = add_UNC_CCR(request)
-        if not unc_ccr_response:
-            return False
-
-        # # Шаг 3: Удаление всех записей из ObjectAnalog только для данного проекта
-        print('Шаг № 3')
-        delete_object_analog(request, project_id)
-
-        messages.success(request, f"Процесс повторного связывания для проекта {project_id} успешно завершен.")
-        return redirect('myapp:CCP_UNC_page')  
-
-    except Exception as e:
-        messages.error(request, f"Ошибка в процессе повторного связывания для проекта {project_id}: {e}")
+        messages.error(request, f"Ошибка при загрузке ключевых слов из справочника: {e}")
         return redirect('myapp:CCP_UNC_page')
+
+    unc_keyword_map = {}
+    try:
+        # Шаг 2: Проход по записям EpcCosts и определение ключевых слов
+        print("Проход по записям EpcCosts и определение ключевых слов")
+        for epc_cost_record in EpcCosts.objects.all():
+            matching_keywords = []
+            cleaned_name_unc = clean_string(epc_cost_record.name_unc)            
+            for key_phrase in key_phrases:
+                cleaned_key_phrase = clean_string(key_phrase.expenses_to_epc_map_epc)
+                if cleaned_key_phrase in cleaned_name_unc:                    
+                    matching_keywords.append((clean_string(key_phrase.expenses_to_epc_map_name), cleaned_key_phrase, key_phrase))
+
+            if matching_keywords:
+                unc_keyword_map[epc_cost_record] = matching_keywords                
+
+    except Exception as e:
+        messages.error(request, f"Ошибка при определении ключевых слов: {e}")
+        return redirect('myapp:CCP_UNC_page')
+
+    try:
+        # Шаг 3: Проход по записям Expenses и поиск соответствий
+        print("Проход по записям Expenses и поиск соответствий")
+        for epc_cost_record, keywords in unc_keyword_map.items():
+            for keyword, keyword_2, key_phrase_obj in keywords:
+                for expense_record in Expenses.objects.all():
+
+                    # Пропускаем записи, у которых заполнено поле object_cost_estimate
+                    if expense_record.object_cost_estimate is not None:
+                        print(f"Пропущена объектная смета: {expense_record.expense_id}")
+                        continue
+
+                    cleaned_expenses_name = clean_string(expense_record.expense_nme)
+
+                    if keyword in cleaned_expenses_name:
+                        print(f"Найдено соответствие: {expense_record}")
+
+                        # Проверка на наличие дубликатов
+                        existing_record = ExpensesByEpc.objects.filter(
+                            epc_costs_id=epc_cost_record,
+                            expense_id=expense_record.expense_id,
+                        ).exists()
+
+                        # Шаг 4: Сохранение результата в ExpensesByEpc
+                        print(f"existing_record: {existing_record}")
+                        if not existing_record:
+                            try:
+                                ExpensesByEpc.objects.create(
+                                    epc_costs_id=epc_cost_record,
+                                    expense_id=expense_record,
+                                    dict_typical_epc_work_id=None,
+                                    dict_budgeting_id=None,
+                                    expenses_to_epc_map_id=key_phrase_obj,
+                                    expenses_by_epc_nme=keyword,
+                                )
+                                print(f"Сохранено: epc_cost_record={epc_cost_record.epc_costs_id}, expense_id={expense_record.expense_id}")
+                            except Exception as e:
+                                print(f"Ошибка при сохранении: {e}")
+    except Exception as e:
+        messages.error(request, f"Ошибка при сохранении результатов: {e}")
+        return redirect('myapp:CCP_UNC_page')
+
+    messages.success(request, "Процесс сопоставления успешно завершен. Объект аналог сохранен")
+    return redirect('myapp:CCP_UNC_page')
+
+# Повторное связывание
+def re_add_UNC_CCR_2(request, project_id):
+    # Получаем объект проекта по project_id
+    invest_project = get_object_or_404(InvestProject, pk=project_id)
+
+    # Получаем все сводные сметы расчета, связанные с объектами этого проекта
+    try:
+        summary_estimates = SummaryEstimateCalculation.objects.get(invest_project=invest_project)
+    except SummaryEstimateCalculation.DoesNotExist:
+        summary_estimates = None
+
+    if summary_estimates:
+        # Получаем все расходы, связанные с данной сводной сметой
+        filtered_expenses = Expenses.objects.filter(summary_estimate_calculation=summary_estimates)
+
+        # Получаем идентификаторы всех записей расходов
+        expense_ids = filtered_expenses.values_list('expense_id', flat=True)
+        
+        # Фильтруем связанные записи в ExpensesByEpc по идентификаторам расходов
+        filtered_expenses_by_epc = ExpensesByEpc.objects.filter(expense_id__in=expense_ids)
+
+        # Удаляем только записи из таблицы Expenses
+        if filtered_expenses_by_epc.exists():
+            num_deleted, _ = filtered_expenses_by_epc.delete()
+            print(f"Удалено {num_deleted} записей из Expenses.")
+        else:
+            print("Нет записей для удаления.")
+
+        # Удаляем записи из ExpensesByEpc, связанные с удаленными расходами
+        if filtered_expenses_by_epc.exists():
+            num_deleted_by_epc, _ = filtered_expenses_by_epc.delete()
+            print(f"Удалено {num_deleted_by_epc} записей из ExpensesByEpc.")
+        else:
+            print("Нет записей для удаления в ExpensesByEpc.")
+
+    # Вызов функции связывания после миграции данных
+    add_UNC_CCR_2(request)
+    
+    messages.success(request, "Процесс пересопоставления успешно завершен. Объект аналог изменен")
+    return redirect('myapp:object_analog_2')
+
+# Формирование проекта с ОА
+@transaction.atomic
+def migrate_data_to_main_tables(request):
+    try:
+        # Группировка данных по проектам из TempTable
+        print("Начало миграции данных...")
+        projects = TempTableUNC.objects.values('project_id', 'project_name').distinct()
+
+        # Группировка объектов по полю name_object из TempTableUNC
+        objects_data = TempTableUNC.objects.values('name_object').distinct()
+
+        for project in projects:
+            project_id = project['project_id']
+            project_code = project['project_id']
+            project_name = project['project_name']
+
+            # Проверка, существует ли проект с таким project_code
+            if InvestProject.objects.filter(invest_project_mrid=project_code).exists():
+                # Если проект с таким кодом уже существует, выдаем уведомление и пропускаем его создание
+                messages.error(request, f"Проект с кодом {project_code} уже существует. Создание дубликата невозможно.")
+                return redirect('myapp:start')
+
+
+            # Создание или обновление инвестиционного проекта
+            invest_project, created = InvestProject.objects.get_or_create(
+                invest_project_mrid=project_code,
+                defaults={
+                    'dict_project_type_id': None,
+                    'dict_project_status_id': None,
+                    'invest_project_type': None,
+                    'invest_project_version': None,
+                    'invest_project_unc_forecast': None,
+                    'invest_project_create_dttm': None,
+                    'invest_project_update_dttm': None,
+                    'project_name': project_name,  # Устанавливаем имя проекта
+                    'project_code': project_code,
+                }
+            )
+            if created:
+                print(f"Создан новый проект: {invest_project}")
+            else:
+                print(f"Проект уже существует: {invest_project}")
+
+
+            print(f"объекты: {objects_data}")
+            for obj_data in objects_data:
+                name_object = obj_data['name_object']
+                print(f"Обработка объекта с именем: {name_object}")
+
+                # Создание объекта
+                obj, created = Object.objects.get_or_create(
+                    invest_project=invest_project,
+                    object_name=name_object,
+                    defaults={
+                        'object_type_id': None,
+                        'dict_region_id': None,
+                        'dict_work_type_id': None,
+                        'dict_substaion_type_id': None,
+                        'start_up_complex_id': None,
+                        'dict_regions_economic_zone_id': None,
+                        'object_mrid': None,
+                        'object_is_analogue': None,
+                        'object_create_dttm': None,
+                        'object_update_dttm': None,
+                    }
+                )
+                if created:
+                    print(f"Создан новый объект: {obj}")
+                else:
+                    print(f"Объект уже существует: {obj}")
+
+                # Создание записи в EpcCalculation
+                epc_calculation = EpcCalculation.objects.create(
+                    object=obj
+                )
+                print(f"Создана запись в EpcCalculation: {epc_calculation}")
+
+                # Создание записей в EpcCosts
+                epc_costs_data = TempTableUNC.objects.filter(name_object=name_object)
+                for epc_cost_data in epc_costs_data:
+                    epc_cost = EpcCosts.objects.create(
+                    object=obj,
+                    epc_calculation=epc_calculation,
+                    dict_cost_epc_id=epc_cost_data.unc_code,  # Обращаемся к полю через точку
+                    dict_cost_epc_table_id=None,
+                    name_unc=epc_cost_data.name_unc,  # Обращаемся к полю через точку
+                    name_object=epc_cost_data.name_object,  # Обращаемся к полю через точку
+                    voltage=epc_cost_data.voltage,  # Обращаемся к полю через точку
+                    TX=epc_cost_data.TX,  # Обращаемся к полю через точку
+                    count=epc_cost_data.count,  # Обращаемся к полю через точку
+                    unit=epc_cost_data.unit  # Обращаемся к полю через точку
+                    )
+                    print(f"Создана запись в EpcCosts: {epc_cost}")
+
+            # Обработка данных из TempTable
+            temp_data = TempTable.objects.all()
+            print(f"Найдено {temp_data.count()} записей в TempTable для проекта ID: {project_id}")
+
+            for data in temp_data:
+                print(f"Обработка записи TempTable ID: {data.id}")
+                summary_estimate_calculation, created = SummaryEstimateCalculation.objects.get_or_create(
+                    invest_project=invest_project,
+                    defaults={
+                        'sum_est_calc_mrid': None,
+                        'sum_est_calc_before_ded': None,
+                    }
+                )
+                print(f"Создана запись в SummaryEstimateCalculation: {summary_estimate_calculation}")
+
+                # Создание записи в ObjectCostEstimate, если есть object_costEstimate_id
+                object_cost_estimate = None
+                print(f"Информация в  ObjectCostEstimate: {data.object_costEstimate_id}")
+                if data.object_costEstimate_id:
+                    object_cost_estimate = ObjectCostEstimate.objects.create(
+                        summary_estimate_calculation=summary_estimate_calculation if summary_estimate_calculation else None,
+                        object_cost_estimate_code=data.object_costEstimate_id
+                    )
+                    print(f"Создана запись в ObjectCostEstimate: {object_cost_estimate}")
+
+                # Создание записи в LocalCostEstimate, если есть local_costEstimate_id
+                local_cost_estimate = None
+                if data.local_costEstimate_id:
+
+                    object_cost_estimate_prefix = '-'.join(data.local_costEstimate_id.split('-')[:2])
+
+                    # Пытаемся найти соответствующую объектную смету по этому префиксу
+                    linked_object_cost_estimate = ObjectCostEstimate.objects.filter(
+                        object_cost_estimate_code=object_cost_estimate_prefix
+                    ).first()
+
+                    local_cost_estimate = LocalCostEstimate.objects.create(
+                        object_cost_estimate=linked_object_cost_estimate if linked_object_cost_estimate else object_cost_estimate,
+                        summary_estimate_calculation=summary_estimate_calculation if summary_estimate_calculation else None,
+                        local_cost_estimate_code=data.local_costEstimate_id
+                    )
+                    print(f"Создана запись в LocalCostEstimate: {local_cost_estimate}")
+                    
+                if pd.notna(data.expenses_name) and data.expenses_name not in ('', '0', 'nan'):
+                    print(data.expenses_name)
+                    # Создание записи в Expenses
+                    expense = Expenses.objects.create(
+                        local_cost_estimate=local_cost_estimate if local_cost_estimate else None,
+                        object_cost_estimate=object_cost_estimate if object_cost_estimate else None,
+                        summary_estimate_calculation= summary_estimate_calculation if summary_estimate_calculation else None,
+                        dict_expenditure_id=None,
+                        expense_nme=data.expenses_name,
+                        quarter=data.quarter,
+                        construction_cost=data.construction_cost,
+                        installation_cost=data.installation_cost,
+                        equipment_cost=data.equipment_cost,
+                        other_cost=data.other_cost,
+                        total_cost=data.total_cost,
+                        chapter_id=data.chapter_id
+                    )
+                    print(f"Создана запись в Expenses: {expense}")
+
+        print("Данные успешно перенесены из временных таблиц в основные таблицы.")
+
+        # Вызов функции связывания после миграции данных
+        add_UNC_CCR_2(request)
+
+        return redirect('myapp:start')
+
+    except Exception as e:
+        messages.error(request, f"Ошибка при переносе: {e}")
+        return redirect('myapp:start')
+

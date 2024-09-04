@@ -18,7 +18,16 @@
   {% endblock %}   
   <body>
     {% block header %}
-      <div class="row">
+    {% if messages %}
+          <ul class="message-list">
+            {% for message in messages %}
+              <li class="{% if message.tags %} {{ message.tags }} {% endif %}">
+                {{ message }}
+              </li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+      <div class="row">        
         <div class="content">
           <form action="{% url 'myapp:add_CCR' %}" method="post" enctype="multipart/form-data">
             {% csrf_token %}
@@ -58,11 +67,19 @@
         </div>
         <div class="content-btn">
           <p>Алгоритм связывания</p>
-          <a href="{% url 'myapp:CCP_UNC_page' %}" class="waves-effect waves-light btn">Перейти</a>
+          <a href="{% url 'myapp:migrate_data_to_main_tables' %}" class="waves-effect waves-light btn">разложить</a>
+        </div>
+        <div class="content-btn">
+          <p>Ключевые слова:</p>
+          <a href="{% url 'myapp:dict_word_page' %}" class="waves-effect waves-light btn">Открыть</a>
         </div>
         <div class="content-btn">
           <p>Объекты аналоги:</p>
           <a href="{% url 'myapp:object_analog' %}" class="waves-effect waves-light btn">Открыть</a>
+        </div>
+        <div class="content-btn">
+          <p>Объекты аналоги_2:</p>
+          <a href="{% url 'myapp:object_analog_2' %}" class="waves-effect waves-light btn">Открыть</a>
         </div>
       </div>  
       <div class="row">
@@ -154,16 +171,7 @@
                 $(this).closest('.file-field').find('.file-path').val(fileNames.join(', '));
             });
         });
-        </script>      
-        {% if messages %}
-          <ul class="message-list">
-            {% for message in messages %}
-              <li class="{% if message.tags %} {{ message.tags }} {% endif %}">
-                {{ message }}
-              </li>
-            {% endfor %}
-          </ul>
-        {% endif %}
+        </script>        
     {% endblock %}    
     
   </body>
