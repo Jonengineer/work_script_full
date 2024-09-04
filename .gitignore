@@ -7,5 +7,6 @@ staticfiles/appbase/img/archive
 myapp/__pycache__/
 myapp/migrations/__pycache__/
 settings.py
+debug.log
 
 
