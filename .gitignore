@@ -1,0 +1,11 @@
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+appbase/static/appbase/img/archive
+staticfiles/appbase/img/archive
+myapp/__pycache__/
+myapp/migrations/__pycache__/
+settings.py
+
+

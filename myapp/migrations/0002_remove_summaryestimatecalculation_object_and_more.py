@@ -11,10 +11,6 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RemoveField(
-            model_name='summaryestimatecalculation',
-            name='object',
-        ),
         migrations.AddField(
             model_name='summaryestimatecalculation',
             name='invest_project',
