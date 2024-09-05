@@ -12,6 +12,8 @@ urlpatterns = [
     path('object_analog_2/', views.object_analog_2, name='object_analog_2'),
     path('object_analog_content/<str:project_id>/', views.object_analog_content, name='object_analog_content'),
     path('object_analog_content_2/<str:project_id>/', views.object_analog_content_2, name='object_analog_content_2'),
+    path('local_content_2/<str:project_id>/', views.local_content_2, name='local_content_2'),
+    path('filter_data/', views.async_filter_data, name='async_filter_data'),
 
     # Общие функции
     # Удаления    

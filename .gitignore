@@ -8,5 +8,6 @@ myapp/__pycache__/
 myapp/migrations/__pycache__/
 settings.py
 debug.log
-
+myproject/__pycache__/
+myproject/settings.py
 

@@ -16,6 +16,7 @@ from .forms import ObjectAnalogForm
 import logging
 import csv
 import numpy as np
+from django.http import JsonResponse
 
 logging.basicConfig(
     filename='debug.log',  # Имя файла, куда будут записываться логи
@@ -450,7 +451,76 @@ def object_analog_content_2(request, project_id):
     }
     
     return render(request, 'object_anlog_content_2.html', context)
-                            
+
+# Содержание локальных смет Объекта аналога
+def local_content_2(request, project_id):
+    # Получаем объект проекта по project_id
+    invest_project = get_object_or_404(InvestProject, pk=project_id)
+
+    # Получаем все сводные сметы расчета, связанные с объектами этого проекта
+    summary_estimates = SummaryEstimateCalculation.objects.get(invest_project=invest_project)  
+
+    # Получаем все локальные сметы расчета, связанные с ССР
+    local_estimates = LocalCostEstimate.objects.filter(summary_estimate_calculation=summary_estimates) 
+
+    local_estimates_data = LocalEstimateData.objects.filter(local_cost_estimate__in=local_estimates)
+
+    # Список идентификаторов локальных смет для передачи в шаблон
+    local_estimate_ids = list(local_estimates_data.values_list('parsed_local_estimate_id', flat=True))
+
+    context = {
+        'project_id': project_id,
+        'local_estimates_data': local_estimates_data,
+        'local_estimate_ids': local_estimate_ids,
+    }
+    
+    return render(request, 'local.html', context)
+
+# Фильтрация смет
+def async_filter_data(request):
+    if request.method == 'POST':
+        column_name = request.POST.get('column_name', None)  # Столбец
+        keyword = request.POST.get('keyword', '')  # Ключевое слово
+        estimate_ids = request.POST.getlist('estimate_ids[]', [])  # Идентификаторы локальных смет
+
+        # Фильтруем данные только по переданным идентификаторам локальных смет
+        local_estimates_data = LocalEstimateData.objects.filter(parsed_local_estimate_id__in=estimate_ids)
+        
+        filtered_data = []
+        column_key = f"Unnamed: {column_name}"
+
+        if keyword:
+            # Пройдемся по всем данным
+            for data in local_estimates_data:
+                if column_name:
+                    # Если указан столбец, ищем только в этом столбце
+                    if column_key in data.row_data:
+                        cell_value = str(data.row_data[column_key])                        
+                        if re.search(keyword.lower(), cell_value.lower()):
+                            print('Условие сработало с столбцом')
+                            filtered_data.append({
+                                'local_cost_estimate_code': data.local_cost_estimate.local_cost_estimate_code,
+                                'row_number': data.row_number,
+                                'row_data': data.row_data
+                            })
+                else:
+                    # Если столбец не указан, ищем по всем столбцам (всему JSON)
+                    for key, value in data.row_data.items():
+                        cell_value = str(value)                        
+                        if re.search(keyword.lower(), cell_value.lower()):
+                            print('Условие сработало без столбцом')
+                            filtered_data.append({
+                                'local_cost_estimate_code': data.local_cost_estimate.local_cost_estimate_code,
+                                'row_number': data.row_number,
+                                'row_data': data.row_data
+                            })
+                            break
+
+        return JsonResponse({'data': filtered_data})
+    else:
+        return JsonResponse({'error': 'Invalid request method'}, status=400)
+
+
 
 # Импорт CCR
 def add_CCR(request):
@@ -1069,7 +1139,7 @@ def save_all_object_analogs_CCR(request, project_id):
 
 
 # Связывание_2
-def add_UNC_CCR_2(request):
+def add_UNC_CCR_2(request, project):
     try:
         # Шаг 1: Загрузка всех ключевых слов из справочника
         key_phrases = ExpensesToEpcMap.objects.all()
@@ -1080,7 +1150,8 @@ def add_UNC_CCR_2(request):
     unc_keyword_map = {}
     try:
         # Шаг 2: Проход по записям EpcCosts и определение ключевых слов
-        for epc_cost_record in EpcCosts.objects.all():
+        epc_costs_records = EpcCosts.objects.filter(object__invest_project=project)
+        for epc_cost_record in epc_costs_records:
             matching_keywords = []
             cleaned_name_unc = clean_string(epc_cost_record.name_unc)            
             for key_phrase in key_phrases:
@@ -1097,9 +1168,10 @@ def add_UNC_CCR_2(request):
 
     try:
         # Шаг 3: Проход по записям Expenses и поиск соответствий
+        expenses_records = Expenses.objects.filter(summary_estimate_calculation__invest_project=project)
         for epc_cost_record, keywords in unc_keyword_map.items():
             for keyword, keyword_2, key_phrase_obj in keywords:
-                for expense_record in Expenses.objects.all():
+                for expense_record in expenses_records:
 
                     # Пропускаем записи, у которых заполнено поле object_cost_estimate
                     if expense_record.object_cost_estimate is not None:
@@ -1136,6 +1208,9 @@ def add_UNC_CCR_2(request):
     messages.success(request, "Процесс сопоставления успешно завершен. Объект аналог сохранен")
     return redirect('myapp:CCP_UNC_page')
 
+
+
+
 # Повторное связывание
 def re_add_UNC_CCR_2(request, project_id):
     # Получаем объект проекта по project_id
@@ -1157,22 +1232,15 @@ def re_add_UNC_CCR_2(request, project_id):
         # Фильтруем связанные записи в ExpensesByEpc по идентификаторам расходов
         filtered_expenses_by_epc = ExpensesByEpc.objects.filter(expense_id__in=expense_ids)
 
-        # Удаляем только записи из таблицы Expenses
-        if filtered_expenses_by_epc.exists():
-            num_deleted, _ = filtered_expenses_by_epc.delete()
-            print(f"Удалено {num_deleted} записей из Expenses.")
-        else:
-            print("Нет записей для удаления.")
-
         # Удаляем записи из ExpensesByEpc, связанные с удаленными расходами
         if filtered_expenses_by_epc.exists():
             num_deleted_by_epc, _ = filtered_expenses_by_epc.delete()
-            print(f"Удалено {num_deleted_by_epc} записей из ExpensesByEpc.")
+            messages.success(request, f"Удалено {num_deleted_by_epc} записей из ExpensesByEpc.")
         else:
-            print("Нет записей для удаления в ExpensesByEpc.")
+            messages.error(request, f"Не найдены записи о связаных позициях из ExpensesByEpc.")
 
     # Вызов функции связывания после миграции данных
-    add_UNC_CCR_2(request)
+    add_UNC_CCR_2(request, invest_project)
     
     messages.success(request, "Процесс пересопоставления успешно завершен. Объект аналог изменен")
     return redirect('myapp:object_analog_2')
@@ -1332,7 +1400,7 @@ def migrate_data_to_main_tables(request):
                     )
 
         # Вызов функции связывания после миграции данных
-        add_UNC_CCR_2(request)
+        add_UNC_CCR_2(request, invest_project)
 
         return redirect('myapp:start')
 

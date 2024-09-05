@@ -1,0 +1,146 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ru">
+  {% block styles %}
+  <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">        
+      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
+      <link rel="stylesheet" type="text/css" href="{% static 'css/start.css' %}">
+      <link rel="icon" href="{% static 'favicon.ico' %}" type="image/x-icon">       
+  </head>
+  {% endblock %}   
+  <body>
+    {% block header %}
+    <div class="row">
+        {% if messages %}
+            <ul class="message-list">
+                {% for message in messages %}
+                <li class="{% if message.tags %} {{ message.tags }} {% endif %}">
+                    {{ message }}
+                </li>
+                {% endfor %}
+            </ul>
+        {% endif %} 
+        <div class="content-btn">
+          <a href="{% url 'myapp:object_analog_content_2' project_id=project_id %}" class="waves-effect waves-light btn">Назад</a>
+        </div>
+        <form id="filter-form">
+            {% csrf_token %}
+            <div class="row">
+                <label for="column_name">Номер столбца:</label>
+                <input type="text" id="column_name" name="column_name">
+            
+                <label for="keyword">Ключевое слово:</label>
+                <input type="text" id="keyword" name="keyword">
+                <div class="content-btn">
+                    <button type="submit" class="waves-effect waves-light btn save">Поиск</button>
+                </div>
+            </div>
+        </form>        
+    </div>    
+    <div class="row">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Номер ЛСР</th>
+                    <th>Номер строки</th>
+                    <th>Данные</th>
+                </tr>
+            </thead>
+            <tbody id="results">
+                <!-- Здесь будут добавляться результаты -->
+            </tbody>
+        </table>
+    </div>
+    <div class="row">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Номер ЛСР</th>
+                    <th>Номер строки</th>
+                    <th>Данные</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for data in local_estimates_data %}
+                    <tr>
+                        <td>{{ data.local_cost_estimate.local_cost_estimate_code }}</td>
+                        <td>{{ data.row_number }}</td>
+                        <td>
+                            {% for key, value in data.row_data.items %}
+                                <strong>{{ key }}:</strong> {{ value }}<br>
+                            {% endfor %}
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="2">Нет данных для этой сметы.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endblock %}
+
+    {% block content %}
+    {% endblock %}
+
+    {% block scripts %}  
+        <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>    
+        <script>
+            document.getElementById('filter-form').addEventListener('submit', function(event) {
+                event.preventDefault();  // Останавливаем стандартное поведение формы
+            
+                let columnName = document.getElementById('column_name').value;
+                let keyword = document.getElementById('keyword').value;
+            
+                // Получаем список идентификаторов смет
+                let estimateIds = {{ local_estimate_ids|safe }};
+
+                // Получаем CSRF токен из cookies
+                let csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            
+                // Создаем объект данных для отправки
+                let formData = new FormData();
+                formData.append('column_name', columnName);
+                formData.append('keyword', keyword);
+                estimateIds.forEach(id => formData.append('estimate_ids[]', id));
+            
+                // Отправляем POST-запрос
+                fetch('/filter_data/', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrfToken  // Включаем CSRF токен в заголовок
+                    },
+                    body: formData,
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Обработка полученных данных
+                    const resultsDiv = document.getElementById('results');
+                    resultsDiv.innerHTML = '';
+            
+                    if (data.data.length === 0) {
+                        resultsDiv.innerHTML = '<p>Нет данных для отображения</p>';
+                    } else {
+                        data.data.forEach(item => {
+                            let row = `<div>
+                                <p><strong>Код сметы:</strong> ${item.local_cost_estimate_code}</p>
+                                <p><strong>Номер строки:</strong> ${item.row_number}</p>
+                                <p><strong>Данные строки:</strong> ${JSON.stringify(item.row_data)}</p>
+                            </div>`;
+                            resultsDiv.innerHTML += row;
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('Ошибка:', error);
+                });
+            });
+        </script>
+    {% endblock %}    
+    
+  </body>
+</html>
