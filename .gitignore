@@ -10,4 +10,7 @@ settings.py
 debug.log
 myproject/__pycache__/
 myproject/settings.py
+myproject/settings.py
+myproject/__pycache__/settings.cpython-311.pyc
+
 
