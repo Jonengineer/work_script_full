@@ -1306,10 +1306,10 @@ def add_UNC_CCR_3(request, project):
                                     "message": f"Смета {LCR} сопоставлена",
                                 },
                             )
-                        else:
-                            print(f'Условие не выполнено для {LCR}')
+                        else:                            
                             channel_layer = get_channel_layer()
                             LCR = expense_record.local_cost_estimate.local_cost_estimate_code
+                            print(f'Условие не выполнено для {LCR}')
                             # Отправляем уведомление через WebSocket
                             async_to_sync(channel_layer.group_send)(
                                 "notifications_group",  # имя группы
