@@ -27,6 +27,7 @@
             {% endfor %}
           </ul>
         {% endif %}
+      <div id="notifications"></div>
       <div class="row">        
         <div class="content">
           <form action="{% url 'myapp:add_CCR' %}" method="post" enctype="multipart/form-data">
@@ -171,7 +172,34 @@
                 $(this).closest('.file-field').find('.file-path').val(fileNames.join(', '));
             });
         });
-        </script>        
+        </script>
+        <script>
+          const socket = new WebSocket('ws://127.0.0.1:8000/ws/notifications/');
+
+          socket.onopen = function(event) {
+              console.log('WebSocket соединение установлено');
+          };
+
+          socket.onerror = function(error) {
+              console.error('WebSocket ошибка:', error);
+          };
+
+          socket.onclose = function(event) {
+              console.log('WebSocket соединение закрыто', event);
+          };
+
+          socket.onmessage = function(event) {
+              const data = JSON.parse(event.data);
+              const notificationsDiv = document.getElementById('notifications');
+              if (notificationsDiv) {
+                  const message = document.createElement('p');
+                  message.innerText = data.message;
+                  notificationsDiv.appendChild(message);
+              } else {
+                  console.error('Элемент с ID "notifications" не найден.');
+              }
+          };
+        </script>         
     {% endblock %}    
     
   </body>
