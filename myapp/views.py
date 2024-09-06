@@ -1280,89 +1280,92 @@ def add_UNC_CCR_3(request, project):
         expenses_records = Expenses.objects.filter(summary_estimate_calculation__invest_project=project) 
 
         for epc_cost_record, keywords in unc_keyword_map.items():
-            for keyword, keyword_2, key_phrase_obj, cleaned_voltage, name_object in keywords:
-                for expense_record in expenses_records:
-                    # Пропускаем записи, у которых заполнено поле object_cost_estimate
-                    if expense_record.object_cost_estimate is not None:
-                        continue
+            for expense_record in expenses_records:
+                # Пропускаем записи, у которых заполнено поле object_cost_estimate
+                if expense_record.object_cost_estimate is not None:
+                    continue
 
-                    local_match_found = False
-                    # Отдельно анализируем локальные сметы
-                    if expense_record.local_cost_estimate is not None:
-                        local_cost_estimate = expense_record.local_cost_estimate
-                        local_records = LocalEstimateData.objects.filter(local_cost_estimate=local_cost_estimate)
-                        local_match_found = process_local_estimates(local_records, unc_keyword_map, expense_record)
+                local_match_found = False
 
-                        if local_match_found:
-                            
-                            channel_layer = get_channel_layer()
-                            LCR = expense_record.local_cost_estimate.local_cost_estimate_code
-                            print(f'Условие выполнено для {LCR}')
-                            # Отправляем уведомление через WebSocket
-                            async_to_sync(channel_layer.group_send)(
-                                "notifications_group",  # имя группы
-                                {
-                                    "type": "send_notification",
-                                    "message": f"Смета {LCR} сопоставлена",
-                                },
-                            )
-                        else:                            
-                            channel_layer = get_channel_layer()
-                            LCR = expense_record.local_cost_estimate.local_cost_estimate_code
-                            print(f'Условие не выполнено для {LCR}')
-                            # Отправляем уведомление через WebSocket
-                            async_to_sync(channel_layer.group_send)(
-                                "notifications_group",  # имя группы
-                                {
-                                    "type": "send_notification",
-                                    "message": f"Смета {LCR} отправлена на распознование по имени ЛСР",
-                                },
-                            )
+                # Отдельно анализируем локальные сметы
+                if expense_record.local_cost_estimate is not None:
+                    local_cost_estimate = expense_record.local_cost_estimate
+                    local_records = LocalEstimateData.objects.filter(local_cost_estimate=local_cost_estimate)
+                    local_match_found = process_local_estimates(local_records, unc_keyword_map, expense_record)
 
+                    if local_match_found:
+                        channel_layer = get_channel_layer()
+                        LCR = expense_record.local_cost_estimate.local_cost_estimate_code
+                        print(f'Условие выполнено для {LCR}')
+                        # Отправляем уведомление через WebSocket
+                        async_to_sync(channel_layer.group_send)(
+                            "notifications_group",  # имя группы
+                            {
+                                "type": "send_notification",
+                                "message": f"Смета {LCR} сопоставлена",
+                            },
+                        )
+                    else:
+                        channel_layer = get_channel_layer()
+                        LCR = expense_record.local_cost_estimate.local_cost_estimate_code
+                        print(f'Условие не выполнено для {LCR}')
+                        # Отправляем уведомление через WebSocket
+                        async_to_sync(channel_layer.group_send)(
+                            "notifications_group",  # имя группы
+                            {
+                                "type": "send_notification",
+                                "message": f"Смета {LCR} отправлена на распознование по имени ЛСР",
+                            },
+                        )
 
-                    if not local_match_found:
-                        cleaned_expenses_name = clean_string(expense_record.expense_nme)
+                # Переходим к проверке ключевых слов
+                cleaned_expenses_name = clean_string(expense_record.expense_nme)
+                match_found = False  # Флаг для определения, найдено ли совпадение
 
-                        if keyword in cleaned_expenses_name:
+                # Проверяем расход по каждому ключевому слову
+                for keyword, keyword_2, key_phrase_obj, cleaned_voltage, name_object in keywords:
+                    if keyword in cleaned_expenses_name:
+                        voltage_found = False
+                        object_name_found = False
 
-                            # Проверка по напряжению и имени объекта
-                            voltage_found = False
-                            object_name_found = False
+                        # Проверяем напряжение и имя объекта
+                        if cleaned_voltage and cleaned_voltage in cleaned_expenses_name:
+                            voltage_found = True
 
-                             # Если напряжение указано, проверяем его
-                            if cleaned_voltage:
-                                if cleaned_voltage in cleaned_expenses_name:
-                                    voltage_found = True
-                                    print(f"Найдено напряжение '{cleaned_voltage}' в названии расхода '{cleaned_expenses_name}'")
+                        if name_object and name_object in cleaned_expenses_name:
+                            object_name_found = True
 
-                            # Проверка наличия имени объекта
-                            if name_object and name_object in cleaned_expenses_name:
-                                object_name_found = True
-                                print(f"Найдено имя объекта '{name_object}' в названии расхода '{cleaned_expenses_name}'")
+                        # Если найдено хотя бы одно совпадение
+                        if voltage_found or object_name_found or keyword in cleaned_expenses_name:
+                            # Проверка на наличие дубликатов
+                            existing_record = ExpensesByEpc.objects.filter(
+                                epc_costs_id=epc_cost_record,
+                                expense_id=expense_record.expense_id,
+                            ).exists()
 
+                            if not existing_record:
+                                try:
+                                    # Создаем запись с совпадениями
+                                    ExpensesByEpc.objects.create(
+                                        epc_costs_id=epc_cost_record,
+                                        expense_id=expense_record,
+                                        dict_typical_epc_work_id=None,
+                                        dict_budgeting_id=None,
+                                        expenses_to_epc_map_id=key_phrase_obj,
+                                        expenses_by_epc_nme=keyword,
+                                    )                                    
+                                    match_found = True  # Указываем, что совпадение найдено
 
-                            # Если найдено хотя бы одно из условий
-                            if voltage_found or object_name_found or keyword in cleaned_expenses_name:
-                                
-                                # Проверка на наличие дубликатов
-                                existing_record = ExpensesByEpc.objects.filter(
-                                    epc_costs_id=epc_cost_record,
-                                    expense_id=expense_record.expense_id,
-                                ).exists()
+                                except Exception as e:
+                                    messages.error(request, f"Ошибка при сохранении: {e}")
+                    else:
+                        print(f'Ключевое слово {keyword} не найдено в {cleaned_expenses_name}')
+                
+                # Выводим сообщение, если для этого расхода не найдено совпадений
+                if not match_found:
+                    print(f'позицию {cleaned_expenses_name} не удалось связать ни с одним ключевым словом')
+                    messages.error(request, f"позицию не удалось связать: {cleaned_expenses_name}")
 
-                                if not existing_record:
-                                    try:
-                                        ExpensesByEpc.objects.create(
-                                            epc_costs_id=epc_cost_record,
-                                            expense_id=expense_record,
-                                            dict_typical_epc_work_id=None,
-                                            dict_budgeting_id=None,
-                                            expenses_to_epc_map_id=key_phrase_obj,
-                                            expenses_by_epc_nme=keyword,
-                                        )
-                                        print(f"Создана запись для ключевого слова '{keyword}', напряжения '{cleaned_voltage}', объекта '{name_object}'")
-                                    except Exception as e:
-                                        messages.error(request, f"Ошибка при сохранении: {e}")                            
     except Exception as e:
         messages.error(request, f"Ошибка при сохранении результатов: {e}")
         return redirect('myapp:CCP_UNC_page')
@@ -1453,13 +1456,14 @@ def re_add_UNC_CCR_2(request, project_id):
         # Удаляем записи из ExpensesByEpc, связанные с удаленными расходами
         if filtered_expenses_by_epc.exists():
             num_deleted_by_epc, _ = filtered_expenses_by_epc.delete()
+            # Вызов функции связывания после миграции данных
+            add_UNC_CCR_3(request, invest_project)
             messages.success(request, f"Удалено {num_deleted_by_epc} записей из ExpensesByEpc.")
         else:
-            messages.error(request, f"Не найдены записи о связаных позициях из ExpensesByEpc.")
+            # Вызов функции связывания после миграции данных
+            add_UNC_CCR_3(request, invest_project)
+            messages.error(request, f"Не найдены записи о связаных позициях из ExpensesByEpc.") 
 
-    # Вызов функции связывания после миграции данных
-    add_UNC_CCR_3(request, invest_project)
-    
     messages.success(request, "Процесс пересопоставления успешно завершен. Объект аналог изменен")
     return redirect('myapp:object_analog_2')
 
