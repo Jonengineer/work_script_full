@@ -1291,7 +1291,33 @@ def add_UNC_CCR_3(request, project):
                     if expense_record.local_cost_estimate is not None:
                         local_cost_estimate = expense_record.local_cost_estimate
                         local_records = LocalEstimateData.objects.filter(local_cost_estimate=local_cost_estimate)
-                        local_match_found = process_local_estimates(local_records, unc_keyword_map, expense_record)                        
+                        local_match_found = process_local_estimates(local_records, unc_keyword_map, expense_record)
+
+                        if local_match_found:
+                            print('Условие выполнено')
+                            channel_layer = get_channel_layer()
+                            LCR = expense_record.local_cost_estimate.local_cost_estimate_code
+                            # Отправляем уведомление через WebSocket
+                            async_to_sync(channel_layer.group_send)(
+                                "notifications_group",  # имя группы
+                                {
+                                    "type": "send_notification",
+                                    "message": f"Смета {LCR} сопоставлена",
+                                },
+                            )
+                        else:
+                            print('Условие выполнено')
+                            channel_layer = get_channel_layer()
+                            LCR = expense_record.local_cost_estimate.local_cost_estimate_code
+                            # Отправляем уведомление через WebSocket
+                            async_to_sync(channel_layer.group_send)(
+                                "notifications_group",  # имя группы
+                                {
+                                    "type": "send_notification",
+                                    "message": f"Смета {LCR} отправлена на распознование по имени ЛСР",
+                                },
+                            )
+
 
                     if not local_match_found:
                         cleaned_expenses_name = clean_string(expense_record.expense_nme)
