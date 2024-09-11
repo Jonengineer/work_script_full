@@ -1664,7 +1664,7 @@ def migrate_data_to_main_tables(request):
                         total_cost=data.total_cost,
                         chapter_id=data.chapter_id
                     )
-
+        messages.success(request, f"Проект с кодом {project_code} успешно сохранен!")
         return redirect('myapp:start')
 
     except Exception as e:
