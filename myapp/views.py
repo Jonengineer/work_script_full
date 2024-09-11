@@ -1483,7 +1483,7 @@ def process_local_estimates(local_estimates, unc_keyword_map, expense_record):
                 
     return match_found
 
-# Повторное связывание
+# Связывание
 def re_add_UNC_CCR_2(request, project_id):
     # Получаем объект проекта по project_id
     invest_project = get_object_or_404(InvestProject, pk=project_id)
@@ -1664,9 +1664,6 @@ def migrate_data_to_main_tables(request):
                         total_cost=data.total_cost,
                         chapter_id=data.chapter_id
                     )
-
-        # Вызов функции связывания после миграции данных
-        add_UNC_CCR_3(request, invest_project)
 
         return redirect('myapp:start')
 
