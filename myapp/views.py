@@ -120,10 +120,11 @@ def add_expense_to_epc(request):
     if request.method == 'POST':
         expense_name = request.POST.get('expense_name')
         expense_epc = request.POST.get('expense_epc')
+        expense_number = request.POST.get('expense_number')
 
         # Создаем и сохраняем новый объект
         new_expense = ExpensesToEpcMap(
-            expenses_to_epc_map_name=expense_name, expenses_to_epc_map_epc=expense_epc)
+            expenses_to_epc_map_name=expense_name, expenses_to_epc_map_epc=expense_epc, expenses_to_epc_number = expense_number)
         new_expense.save()
 
         # Перенаправляем на ту же страницу или другую по вашему выбору
