@@ -6,6 +6,7 @@ class NotificationConsumer(WebsocketConsumer):
     def connect(self):
         # Добавляем текущего клиента в группу "notifications_group"
         self.group_name = "notifications_group"
+        self.close_timeout = 3600  # Установите таймаут на 3600 секунд (1 час)
         async_to_sync(self.channel_layer.group_add)(
             self.group_name,
             self.channel_name
