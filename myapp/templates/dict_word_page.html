@@ -67,6 +67,7 @@
                     <th>№ п\п</th>
                     <th>Наименование позиции РПС</th>
                     <th>Ключевое слово технической характеристики</th>
+                    <th>Тип (1-поиск по имени ЛСР, 2-поиск по позицииЛСР)</th>
                     <th>Редактировать</th>
                 </tr>
             </thead>
@@ -83,6 +84,10 @@
                         <td>
                           <span id="epc-text-{{ record.expenses_to_epc_map_id }}">{{ record.expenses_to_epc_map_epc }}</span>
                           <input type="text" name="expense_epc" id="epc-input-{{ record.expenses_to_epc_map_id }}" value="{{ record.expenses_to_epc_map_epc }}" style="display: none;">
+                        </td> 
+                        <td>
+                          <span id="number-text-{{ record.expenses_to_epc_map_id }}">{{ record.expenses_to_epc_number }}</span>
+                          <input type="text" name="expense_number" id="number-input-{{ record.expenses_to_epc_map_id }}" value="{{ record.expenses_to_epc_number }}" style="display: none;">
                         </td> 
                         <td>
                           <a href="#" class="waves-effect waves-light btn edit-btn" data-id="{{ record.expenses_to_epc_map_id }}">Редактировать</a>
@@ -116,8 +121,10 @@
                 // Скрываем текстовые поля и показываем инпуты для редактирования
                 document.getElementById('name-text-' + recordId).style.display = 'none';
                 document.getElementById('epc-text-' + recordId).style.display = 'none';
+                document.getElementById('number-text-' + recordId).style.display = 'none';
                 document.getElementById('name-input-' + recordId).style.display = 'block';
                 document.getElementById('epc-input-' + recordId).style.display = 'block';   
+                document.getElementById('number-input-' + recordId).style.display = 'block';  
 
                 // Скрываем кнопку "Редактировать" и показываем кнопку "Сохранить"
                 this.style.display = 'none';

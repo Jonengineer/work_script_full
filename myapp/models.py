@@ -18,6 +18,7 @@ class ExpensesToEpcMap(models.Model):
     expenses_to_epc_map_id = models.AutoField(primary_key=True)
     expenses_to_epc_map_name = models.TextField()
     expenses_to_epc_map_epc = models.TextField()
+    expenses_to_epc_number = models.IntegerField()  # Поле для хранения номера строки из TempTable
 
     class Meta:
         db_table = 'expenses_to_epc_map'

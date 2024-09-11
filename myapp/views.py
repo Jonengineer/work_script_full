@@ -149,10 +149,12 @@ def edit_expense_to_epc(request, expense_id):
         # Получаем данные из формы
         expense_name = request.POST.get('expense_name')
         expense_epc = request.POST.get('expense_epc')
+        expense_number = request.POST.get('expense_number')
 
         # Обновляем объект ключевого слова
         expense.expenses_to_epc_map_name = expense_name
         expense.expenses_to_epc_map_epc = expense_epc
+        expense.expenses_to_epc_number = expense_number
         expense.save()
 
         # Перенаправляем пользователя обратно на страницу списка ключевых слов или другую по вашему выбору
