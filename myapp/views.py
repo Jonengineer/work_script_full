@@ -1432,7 +1432,8 @@ def process_local_estimates(local_estimates, unc_keyword_map_local, expense_reco
                 next_part = None
 
                 for key, value in row_data.items():
-                    value_str = clean_and_normalize_string(str(value)).lower()                  
+                    value_str = clean_and_normalize_string(str(value)).lower()     
+                    save_record = False             
 
                     # Проверяем наличие ключевого слова
                     keyword_position = value_str.find(keyword.lower())
