@@ -569,18 +569,6 @@ def add_CCR(request):
                     'index': index,
                     'row_values': row_values
                 })
-
-            # # Шаг 2.1: Запись rows_data в CSV-файл
-            # with open("output.csv", "w", newline='') as file:
-            #     writer = csv.writer(file)
-                
-            #     # Запись заголовка
-            #     writer.writerow(['Index', 'Row Values'])
-                
-            #     # Запись данных
-            #     for row_data in rows_data:
-            #         writer.writerow([row_data['index'], ", ".join(map(str, row_data['row_values']))])
-
                 
             # Шаг 3: Обработка данных из списка
             current_chapter = None
@@ -677,7 +665,7 @@ def add_CCR(request):
                             messages.success(request, f"Финальная строка найдена: {target_column}")
                             break
 
-                if current_chapter is not None:
+                if current_chapter is not None:   
                     try:
                         cost_estimate_id = row_values[1].replace(' ', '')                       
                                                 
@@ -1260,11 +1248,13 @@ def add_UNC_CCR_3(request, project):
         return redirect('myapp:CCP_UNC_page')
 
     unc_keyword_map = {}
+    unc_keyword_map_local = {}
     try:
         # Шаг 2: Проход по записям EpcCosts и определение ключевых слов
         epc_costs_records = EpcCosts.objects.filter(object__invest_project=project)
         for epc_cost_record in epc_costs_records:
             matching_keywords = []
+            matching_keywords_local = []
             cleaned_name_unc = clean_string(epc_cost_record.name_unc)            
             cleaned_voltage = clean_voltage_string(epc_cost_record.voltage)
             name_object = clean_object_name(epc_cost_record.name_object)
@@ -1272,11 +1262,28 @@ def add_UNC_CCR_3(request, project):
             for key_phrase in key_phrases:
                 cleaned_key_phrase = clean_string(key_phrase.expenses_to_epc_map_epc)
 
-                if cleaned_key_phrase in cleaned_name_unc:                    
-                    matching_keywords.append((clean_string(key_phrase.expenses_to_epc_map_name), cleaned_key_phrase, key_phrase, cleaned_voltage, name_object))
+                if cleaned_key_phrase in cleaned_name_unc:
+                    entry = (
+                        clean_string(key_phrase.expenses_to_epc_map_name),
+                        cleaned_key_phrase,
+                        key_phrase,
+                        cleaned_voltage,
+                        name_object
+                    )
 
+                    # Разделение в зависимости от expenses_to_epc_number
+                    if key_phrase.expenses_to_epc_number == 1:
+                        matching_keywords.append(entry)
+
+                    elif key_phrase.expenses_to_epc_number == 2:
+                        matching_keywords_local.append(entry)   
+                    
+            # Добавление в словари только если есть соответствующие данные
             if matching_keywords:
-                unc_keyword_map[epc_cost_record] = matching_keywords                
+                unc_keyword_map[epc_cost_record] = matching_keywords
+
+            if matching_keywords_local:
+                unc_keyword_map_local[epc_cost_record] = matching_keywords_local              
 
     except Exception as e:
         messages.error(request, f"Ошибка при определении ключевых слов: {e}")
@@ -1288,7 +1295,7 @@ def add_UNC_CCR_3(request, project):
 
         # Шаг 2: Обрабатываем каждую запись по отдельности
         for expense_record in expenses_records:
-            process_expense_record(expense_record, unc_keyword_map)
+            process_expense_record(expense_record, unc_keyword_map, unc_keyword_map_local)
 
     except Exception as e:
         messages.error(request, f"Ошибка при сохранении результатов: {e}")
@@ -1298,7 +1305,8 @@ def add_UNC_CCR_3(request, project):
     return redirect('myapp:CCP_UNC_page')
 
 # Связывание_3.Прогон позиций затрат 
-def process_expense_record(expense_record, unc_keyword_map):
+def process_expense_record(expense_record, unc_keyword_map, unc_keyword_map_local):
+
     # Пропускаем записи, у которых заполнено поле object_cost_estimate
     if expense_record.object_cost_estimate is not None:
         return
@@ -1315,12 +1323,11 @@ def process_expense_record(expense_record, unc_keyword_map):
         local_records = LocalEstimateData.objects.filter(local_cost_estimate=local_cost_estimate)
 
         # Передаем все записи LocalEstimateData для этой сметы в process_local_estimates
-        local_match_found = process_local_estimates(local_records, unc_keyword_map, expense_record)
+        local_match_found = process_local_estimates(local_records, unc_keyword_map_local, expense_record)
 
         LCR = expense_record.local_cost_estimate.local_cost_estimate_code        
 
         if local_match_found:
-            print(f'Условие выполнено для {LCR}')
             # Отправляем уведомление через WebSocket
             async_to_sync(channel_layer.group_send)(
                 "notifications_group",  # имя группы
@@ -1330,7 +1337,6 @@ def process_expense_record(expense_record, unc_keyword_map):
                 },
             )
         else:
-            print(f'Условие не выполнено для {LCR}')
             # Отправляем уведомление через WebSocket
             async_to_sync(channel_layer.group_send)(
                 "notifications_group",  # имя группы
@@ -1350,8 +1356,7 @@ def process_expense_record(expense_record, unc_keyword_map):
         for keyword, keyword_2, key_phrase_obj, cleaned_voltage, name_object in keywords:
             if keyword in cleaned_expenses_name:
                 voltage_found = cleaned_voltage in cleaned_expenses_name if cleaned_voltage else False
-                object_name_found = name_object in cleaned_expenses_name if name_object else False
-                
+                object_name_found = name_object in cleaned_expenses_name if name_object else False                
 
                 # Если найдено хотя бы одно совпадение
                 if voltage_found or object_name_found:
@@ -1395,7 +1400,7 @@ def process_expense_record(expense_record, unc_keyword_map):
         )
 
 # Связывание_3.Анализ локальных смет
-def process_local_estimates(local_estimates, unc_keyword_map, expense_record):
+def process_local_estimates(local_estimates, unc_keyword_map_local, expense_record):
     match_found = False
     similarity_threshold = 0.42
     object_name_found = False
@@ -1405,7 +1410,7 @@ def process_local_estimates(local_estimates, unc_keyword_map, expense_record):
         row_data = local_record.row_data
 
         # Ищем совпадение по каждому EpcCosts и ключевым словам
-        for epc_cost_record, keywords_info in unc_keyword_map.items():
+        for epc_cost_record, keywords_info in unc_keyword_map_local.items():
             for keyword, cleaned_key_phrase, key_phrase_obj, cleaned_voltage, name_object in keywords_info:   
                 
                 # Сначала проверяем, принадлежит ли строка к объекту
@@ -1434,32 +1439,48 @@ def process_local_estimates(local_estimates, unc_keyword_map, expense_record):
                     if keyword_position != -1:
                         keyword_found = True                        
 
-                        # Проверяем напряжение сразу после ключевого слова
-                        voltage_position = keyword_position + len(keyword)  # Позиция, где должно быть напряжение
-                        next_part = value_str[voltage_position:].strip()  # Следующая часть строки после ключевого слова
-                        voltage_match = re.search(r'\d{1,3}(,\d{1})?кв', next_part, re.IGNORECASE)
+                        # Проверяем напряжение сразу после ключевого слова         
+                        voltage_match = re.search(r'\d{1,3}(,\d{1})?кв', value_str, re.IGNORECASE)
 
-                        if voltage_match:
-                            match = voltage_match.group(0).strip().lower()  # Убираем пробелы и приводим к нижнему регистру
-                            cleaned_voltage_normalized = cleaned_voltage.strip().lower()  # Убираем пробелы и приводим к нижнему регистру
-                            voltage_found = True
+                        # Проверка на наличие фразы "до" перед напряжением
+                        if "до" in value_str:
+                            # Проверяем, что перед напряжением идет фраза "до" (например, "Кабель до 35 кВ")
+                            range_match = re.search(r'до\s*(\d{1,3})(,\d{1})?\s*кв', value_str, re.IGNORECASE)
+                            if range_match:
+                                voltage_found = True
 
-                            # Сравниваем напряжение с cleaned_voltage
-                            if match == cleaned_voltage_normalized:
-                                print(f'{match} = {cleaned_voltage_normalized}')
-                                save_record = True
-                            else:
-                                save_record = False
+                                # Если найдено напряжение, проверяем, попадает ли оно в диапазон
+                                if voltage_match:
+                                    found_voltage = float(voltage_match.group(0).replace('кв', '').replace(',', '.').strip())
+                                    cleaned_voltage_normalized = float(re.sub(r'[^\d,]', '', cleaned_voltage).replace(',', '.'))
+                                    
+                                    if 0 <= cleaned_voltage_normalized <= found_voltage:
+                                        print(f'Напряжение {cleaned_voltage_normalized} кВ попадает в диапазон до {found_voltage} кВ')
+                                        save_record = True
+                                    else:
+                                        save_record = False
+                                else:
+                                    save_record = False
                         else:
-                            voltage_found = False
-                            save_record = True
+                            if voltage_match:
+                                match = voltage_match.group(0).strip().lower()  # Убираем пробелы и приводим к нижнему регистру
+                                cleaned_voltage_normalized = cleaned_voltage.strip().lower()  # Убираем пробелы и приводим к нижнему регистру
+                                voltage_found = True
+
+                                # Сравниваем напряжение с cleaned_voltage
+                                if match == cleaned_voltage_normalized:
+                                    save_record = True
+                                else:
+                                    save_record = False
+                            else:
+                                voltage_found = False
+                                save_record = True
 
                 # Если ключевое слово найдено и (напряжение или имя объекта) также найдены, создаем запись                
                 if keyword_found and (voltage_found or object_name_found):
                     print(f'Найдено ключевое слово "{keyword}" с cleaned_voltage "{match} = {cleaned_voltage}" {voltage_found} next_part: "{next_part}" Найдено имя объекта "{name_object}"')
                     
                     if save_record:
-                        print(f'Сохраняем')
                         # Проверка на наличие дубликатов
                         existing_record = ExpensesByEpc.objects.filter(
                             epc_costs_id=epc_cost_record,
