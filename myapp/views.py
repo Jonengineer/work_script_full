@@ -1349,17 +1349,29 @@ def process_expense_record(expense_record, unc_keyword_map, unc_keyword_map_loca
     # Переходим к проверке ключевых слов
     cleaned_expenses_name = clean_string(expense_record.expense_nme)
     match_found = False  # Флаг для определения, найдено ли совпадение
+    save_record = False
 
     # Проверяем расход по каждому ключевому слову
     channel_layer = get_channel_layer()
+
     for epc_cost_record, keywords in unc_keyword_map.items():
         for keyword, keyword_2, key_phrase_obj, cleaned_voltage, name_object in keywords:
             if keyword in cleaned_expenses_name:
+
                 voltage_found = cleaned_voltage in cleaned_expenses_name if cleaned_voltage else False
-                object_name_found = name_object in cleaned_expenses_name if name_object else False                
+                object_name_found = name_object in cleaned_expenses_name if name_object else False  
+
+                print(f'Найдено ключевое слово "{keyword}" с voltage_found "{voltage_found}" Найдено имя объекта "{object_name_found}"')                            
 
                 # Если найдено хотя бы одно совпадение
+
                 if voltage_found or object_name_found:
+                    save_record = True
+                else:
+                    save_record = True  
+
+                if save_record:
+
                     # Проверка на наличие дубликатов
                     existing_record = ExpensesByEpc.objects.filter(
                         epc_costs_id=epc_cost_record,
@@ -1387,8 +1399,7 @@ def process_expense_record(expense_record, unc_keyword_map, unc_keyword_map_loca
                             )
                         except Exception as e:
                             print(f"Ошибка при сохранении: {e}")
-            else:
-                pass
+
 
     if not match_found:
         async_to_sync(channel_layer.group_send)(
@@ -1432,17 +1443,17 @@ def process_local_estimates(local_estimates, unc_keyword_map_local, expense_reco
                 next_part = None
 
                 for key, value in row_data.items():
-                    value_str = clean_and_normalize_string(str(value)).lower()     
-                    save_record = False             
+                    value_str = clean_and_normalize_string(str(value)).lower()   
+                    save_record = False                                
 
                     # Проверяем наличие ключевого слова
                     keyword_position = value_str.find(keyword.lower())
                     if keyword_position != -1:
-                        keyword_found = True                        
+                        keyword_found = True                    
 
                         # Проверяем напряжение сразу после ключевого слова         
                         voltage_match = re.search(r'\d{1,3}(,\d{1})?кв', value_str, re.IGNORECASE)
-
+                       
                         # Проверка на наличие фразы "до" перед напряжением
                         if "до" in value_str:
                             # Проверяем, что перед напряжением идет фраза "до" (например, "Кабель до 35 кВ")
