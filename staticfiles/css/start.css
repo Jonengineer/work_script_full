@@ -35,6 +35,13 @@ body {
     box-sizing: border-box; 
     padding: 10px; 
 }
+.content-btn-dict-2 {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+}
+
+
 
 /* Стиль для формы */
 form {
@@ -105,14 +112,14 @@ input {
 }
 
 .save {
-    background-color: #26a69a;
+    background-color: #26a646;
 }
 
 
 td, th {
     padding: 5px 5px;
 }
-td, label, input[type="checkbox"] {
+input[type="checkbox"] {
     box-sizing: border-box;
     margin: 0;
     padding: 0;
@@ -150,4 +157,6 @@ td, label, input[type="checkbox"] {
     background-color: #c2ad79;
     color: #000000;
   }
+
+  
   

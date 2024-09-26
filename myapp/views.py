@@ -22,273 +22,13 @@ from asgiref.sync import async_to_sync
 import difflib
 
 
-
 logging.basicConfig(
     filename='debug.log',  # Имя файла, куда будут записываться логи
     level=logging.DEBUG,    # Уровень логирования
     format='%(asctime)s - %(levelname)s - %(message)s'  # Формат сообщений
 )
 
-# Валидация кварталов
-def format_quarter_info(quarter_str):
-    # Паттерн для извлечения квартала и года с пересчетом
-    pattern_with_base_year = r'\b(\d{4})\s*г(?:од|года)?\s*с\s*пересчетом\s*на\s*(\d+|IV|I|II|III|IV)\s*квартал\s*(\d{4})\s*г(?:од|года)?\b'
-    match_with_base_year = re.search(
-        pattern_with_base_year, quarter_str, re.IGNORECASE)
-
-    if match_with_base_year:
-        quarter = match_with_base_year.group(2)
-        year = match_with_base_year.group(3)
-        # Приведение к формату 'IV квартал 2018 г.'
-        return f'{quarter} квартал {year} г.)'
-
-    # Паттерн для извлечения квартала и года без пересчета
-    pattern_without_base_year = r'(\d+|IV|I|II|III|IV)\s*квартал\s*(\d{4})\s*г(?:од|года)?'
-    match_without_base_year = re.search(
-        pattern_without_base_year, quarter_str, re.IGNORECASE)
-
-    if match_without_base_year:
-        quarter = match_without_base_year.group(1)
-        year = match_without_base_year.group(2)
-        # Приведение к формату 'IV квартал 2018 г.'
-        return f'{quarter} квартал {year} г.'
-
-    # Паттерн для извлечения квартала и года без пересчета
-    pattern_without_base_year = r'(\d+|IV|I|II|III|IV)\s*кв.\s*(\d{4})\s*г(?:од|года)?'
-    match_without_base_year = re.search(
-        pattern_without_base_year, quarter_str, re.IGNORECASE)
-
-    if match_without_base_year:
-        quarter = match_without_base_year.group(1)
-        year = match_without_base_year.group(2)
-        # Приведение к формату 'IV квартал 2018 г.'
-        return f'{quarter} квартал {year} г.'
-
-    # Новый паттерн для строки: "1 кв 2019 года с НДС"
-    pattern_simple_quarter = r'(\d+|IV|I|II|III|IV)\s*кв(?:квартал)?\s*(\d{4})\s*г(?:од|года)?'
-    match_simple_quarter = re.search(
-        pattern_simple_quarter, quarter_str, re.IGNORECASE)
-
-    if match_simple_quarter:
-        quarter = match_simple_quarter.group(1)
-        year = match_simple_quarter.group(2)
-        # Приведение к формату 'I квартал 2019 г.'
-        return f'{quarter} квартал {year} г.'
-
-    pattern = r'(\d{1,2})\s*(кв\w*|квартал)\s*(\d{4})\s*г(?:од|года)?|\b(\d{4})\s*г(?:од|года)?\s*с\s*пересчетом\s*в\s*текущие\s*цены\s*(\d{1,2}|IV|I|II|III|IV)\s*(квартал)\s*(\d{4})\s*г(?:од|года)?'
-    match = re.search(pattern, quarter_str, re.IGNORECASE)
-
-    if match:
-        if match.group(1) and match.group(3):
-            quarter = match.group(1)
-            year = match.group(3)
-            return f'{quarter} квартал {year} г.'
-        elif match.group(5) and match.group(7):
-            quarter = match.group(5)
-            year = match.group(7)
-            return f'{quarter} квартал {year} г.'
-
-    return None
-
-# Удаляем пробелы и заменяем запятую на точку
-def clean_decimal_value(value):
-    if isinstance(value, str):
-        value = value.replace(' ', '').replace(',', '.')
-    return value
-
-# Убирает пробелы и приводит строку к нижнему регистру
-def clean_string(s):
-    return re.sub(r'\s+', '', s).lower()
-
-# Очищаем имя объекта
-def clean_object_name(name_object):
-    return name_object.replace(" ", "").lower()
-
-def clean_voltage_string(voltage):
-    # Удаляем все лишние символы, кроме цифр
-    cleaned_voltage = ''.join(filter(str.isdigit, voltage))
-    
-    # Добавляем 'кВ', если это необходимо
-    if cleaned_voltage:
-        return f"{cleaned_voltage}кВ"
-    else:
-        return None  # Если строка оказалась пустой
-
-
-# Ввод нового ключевого слова
-def add_expense_to_epc(request):
-    if request.method == 'POST':
-        expense_name = request.POST.get('expense_name')
-        expense_epc = request.POST.get('expense_epc')
-        expense_number = request.POST.get('expense_number')
-
-        # Создаем и сохраняем новый объект
-        new_expense = ExpensesToEpcMap(
-            expenses_to_epc_map_name=expense_name, expenses_to_epc_map_epc=expense_epc, expenses_to_epc_number = expense_number)
-        new_expense.save()
-
-        # Перенаправляем на ту же страницу или другую по вашему выбору
-        return redirect('myapp:dict_word_page')
-
-    return render(request, 'dict_word_page.html')  # Укажите ваш шаблон
-
-# Редактирование ключевого слова
-def edit_expense_to_epc(request, expense_id):
-    try:
-        expense_full = ExpensesToEpcMap.objects.all
-        # Получаем ключевое слово по ID
-        expense = ExpensesToEpcMap.objects.get(pk=expense_id)
-
-    except ExpensesToEpcMap.DoesNotExist:
-        # Если ключевое слово не найдено, возвращаем ошибку
-        messages.error(request, "Ключевое слово не найдено.")
-        return redirect('myapp:dict_word_page')    
-
-    print(f'Данные получили {request}')   
-
-    if request.method == 'POST':
-        # Получаем данные из формы
-        expense_name = request.POST.get('expense_name')
-        expense_epc = request.POST.get('expense_epc')
-        expense_number = request.POST.get('expense_number')
-
-        # Обновляем объект ключевого слова
-        expense.expenses_to_epc_map_name = expense_name
-        expense.expenses_to_epc_map_epc = expense_epc
-        expense.expenses_to_epc_number = expense_number
-        expense.save()
-
-        # Перенаправляем пользователя обратно на страницу списка ключевых слов или другую по вашему выбору
-        messages.success(request, "Ключевое слово успешно обновлено.")
-        return redirect('myapp:dict_word_page')
-
-    # Передаем существующие данные ключевого слова в шаблон для отображения в форме
-    context = {
-        'expense': expense_full,
-    }
-    return render(request, 'dict_word_page.html', context)
-
-# Парсинг локалных смет
-def parse_local_estimate_sheet(request, match_code, uploaded_file, temp_table_record):
-    try:
-        # Открываем файл Excel, получаем имена всех листов
-        xls = pd.ExcelFile(uploaded_file)
-
-        # Ищем вкладку, которая содержит идентификатор сметы match_code
-        target_sheet_name = None
-        for sheet_name in xls.sheet_names:
-            if match_code in sheet_name:
-                target_sheet_name = sheet_name
-                break
-
-        if not target_sheet_name:
-            messages.error(request, f"Ошибка при парсинге локальной сметы. Вкладка с кодом {match_code} не найдена.")
-            return
-
-        # Чтение данных из найденной вкладки
-        df = pd.read_excel(xls, sheet_name=target_sheet_name)
-
-        # Заменяем NaN на None (null в JSON)
-        df = df.replace({np.nan: None})
-
-        # Проходим по строкам этой вкладки и сохраняем данные в TempTableLocal
-        for index, row in df.iterrows():
-            row_values = row.to_dict()  # Преобразуем строку в словарь
-
-            # Записываем данные в TempTableLocal
-            TempTableLocal.objects.create(
-                temp_table=temp_table_record,
-                row_number=index + 1,  # Номер строки
-                row_data=row_values  # Данные строки в формате JSON
-            )
-        messages.success(request, f"Данные из вкладки '{target_sheet_name}' успешно сохранены в TempTableLocal.")
-    
-    except Exception as e:
-        messages.error(request, f"Ошибка при парсинге локальной сметы {match_code}: {e}")
-
-
-# Удаление ключевого слова
-def delete_expense_to_epc(request):
-    if request.method == 'POST':
-        expense_id = request.POST.get('expense_id')
-
-        try:
-            # Находим объект и удаляем его
-            expense = ExpensesToEpcMap.objects.get(
-                expenses_to_epc_map_id=expense_id)
-            expense.delete()
-        except ExpensesToEpcMap.DoesNotExist:
-            return HttpResponse("Ключевое слово с таким ID не найдено", status=404)
-
-        # Перенаправляем на ту же страницу или другую по вашему выбору
-        return redirect('myapp:dict_word_page')
-
-    return render(request, 'dict_word_page.html')  # Укажите ваш шаблон
-
-# Очистка списка парсинга
-def delete_temp(request):
-    if request.method == 'POST':
-        # Удаляем все записи из TempTable
-        TempTable.objects.all().delete()
-
-        # Удаляем все записи из TempTableUNC
-        TempTableUNC.objects.all().delete()
-
-        # Перенаправляем пользователя после удаления
-        # Замените 'some_page' на нужный URL или название маршрута
-        return redirect('myapp:start')
-    else:
-        # Замените 'some_page' на нужный URL или название маршрута
-        return redirect('myapp:start')
-
-# Очистка списка связывания
-def delete_CCR_UNC(request):
-    if request.method == 'POST':
-        # Удаляем все записи из TempTableССКUNC
-        TempTableССКUNC.objects.all().delete()
-
-        # Перенаправляем пользователя после удаления
-        # Замените 'some_page' на нужный URL или название маршрута
-        return redirect('myapp:CCP_UNC_page')
-    else:
-        # Замените 'some_page' на нужный URL или название маршрута
-        return redirect('myapp:CCP_UNC_page')
-
-# Удаление ОА
-def delete_object_analog(request, project_id):
-    try:
-        # Удаляем все записи, связанные с данным проектом
-        deleted_count, _ = ObjectAnalog.objects.filter(
-            project_id=project_id).delete()
-
-        # Сообщаем пользователю об успешном удалении
-    except Exception as e:
-        # Если произошла ошибка, сообщаем об этом пользователю
-        messages.error(
-            request, f"Ошибка при удалении записей для проекта с ID {project_id}: {e}")
-
-    # Перенаправляем пользователя на страницу после выполнения операции
-    messages.success(
-        request, f"Успешно удалено {deleted_count} записей для проекта с ID {project_id}")
-    # Укажите правильный URL-имя для редиректа
-    return redirect('myapp:object_analog')
-
-# Удаление ОА_2
-def delete_object_analog_2(request, project_id):
-    try:
-        # Удаляем все записи, связанные с данным проектом
-        deleted_count, _ = InvestProject.objects.filter(invest_project_id=project_id).delete()
-
-        # Сообщаем пользователю об успешном удалении
-    except Exception as e:
-        # Если произошла ошибка, сообщаем об этом пользователю
-        messages.error(request, f"Ошибка при удалении записей для проекта с ID {project_id}: {e}")
-
-    # Перенаправляем пользователя на страницу после выполнения операции
-    messages.success(request, f"Успешно удалено {deleted_count} записей для проекта с ID {project_id}")
-    # Укажите правильный URL-имя для редиректа
-    return redirect('myapp:object_analog_2')
-
+# СТРАНИЦЫ HTML
 # Стартовая страница
 def start_page(request):
 
@@ -425,8 +165,6 @@ def object_analog_content(request, project_id):
     # Фильтрация строк по идентификатору проекта и сортировка по идентификатору главы
     all_object_analog = ObjectAnalog.objects.filter(project_id=project_id).order_by('chapter_id')
     
-
-
     context = {
         'all_object_analog': all_object_analog,
         'project_id': project_id
@@ -542,6 +280,95 @@ def async_filter_data(request):
     else:
         return JsonResponse({'error': 'Invalid request method'}, status=400)
 
+
+
+# ВСПОМОГАТЕЛЬНЫЕ УНКЦИИ
+# Валидация кварталов
+def format_quarter_info(quarter_str):
+    # Паттерн для извлечения квартала и года с пересчетом
+    pattern_with_base_year = r'\b(\d{4})\s*г(?:од|года)?\s*с\s*пересчетом\s*на\s*(\d+|IV|I|II|III|IV)\s*квартал\s*(\d{4})\s*г(?:од|года)?\b'
+    match_with_base_year = re.search(
+        pattern_with_base_year, quarter_str, re.IGNORECASE)
+
+    if match_with_base_year:
+        quarter = match_with_base_year.group(2)
+        year = match_with_base_year.group(3)
+        # Приведение к формату 'IV квартал 2018 г.'
+        return f'{quarter} квартал {year} г.)'
+
+    # Паттерн для извлечения квартала и года без пересчета
+    pattern_without_base_year = r'(\d+|IV|I|II|III|IV)\s*квартал\s*(\d{4})\s*г(?:од|года)?'
+    match_without_base_year = re.search(
+        pattern_without_base_year, quarter_str, re.IGNORECASE)
+
+    if match_without_base_year:
+        quarter = match_without_base_year.group(1)
+        year = match_without_base_year.group(2)
+        # Приведение к формату 'IV квартал 2018 г.'
+        return f'{quarter} квартал {year} г.'
+
+    # Паттерн для извлечения квартала и года без пересчета
+    pattern_without_base_year = r'(\d+|IV|I|II|III|IV)\s*кв.\s*(\d{4})\s*г(?:од|года)?'
+    match_without_base_year = re.search(
+        pattern_without_base_year, quarter_str, re.IGNORECASE)
+
+    if match_without_base_year:
+        quarter = match_without_base_year.group(1)
+        year = match_without_base_year.group(2)
+        # Приведение к формату 'IV квартал 2018 г.'
+        return f'{quarter} квартал {year} г.'
+
+    # Новый паттерн для строки: "1 кв 2019 года с НДС"
+    pattern_simple_quarter = r'(\d+|IV|I|II|III|IV)\s*кв(?:квартал)?\s*(\d{4})\s*г(?:од|года)?'
+    match_simple_quarter = re.search(
+        pattern_simple_quarter, quarter_str, re.IGNORECASE)
+
+    if match_simple_quarter:
+        quarter = match_simple_quarter.group(1)
+        year = match_simple_quarter.group(2)
+        # Приведение к формату 'I квартал 2019 г.'
+        return f'{quarter} квартал {year} г.'
+
+    pattern = r'(\d{1,2})\s*(кв\w*|квартал)\s*(\d{4})\s*г(?:од|года)?|\b(\d{4})\s*г(?:од|года)?\s*с\s*пересчетом\s*в\s*текущие\s*цены\s*(\d{1,2}|IV|I|II|III|IV)\s*(квартал)\s*(\d{4})\s*г(?:од|года)?'
+    match = re.search(pattern, quarter_str, re.IGNORECASE)
+
+    if match:
+        if match.group(1) and match.group(3):
+            quarter = match.group(1)
+            year = match.group(3)
+            return f'{quarter} квартал {year} г.'
+        elif match.group(5) and match.group(7):
+            quarter = match.group(5)
+            year = match.group(7)
+            return f'{quarter} квартал {year} г.'
+
+    return None
+
+# Удаляем пробелы и заменяем запятую на точку
+def clean_decimal_value(value):
+    if isinstance(value, str):
+        value = value.replace(' ', '').replace(',', '.')
+    return value
+
+# Убирает пробелы и приводит строку к нижнему регистру
+def clean_string(s):
+    return re.sub(r'\s+', '', s).lower()
+
+# Очищаем имя объекта
+def clean_object_name(name_object):
+    return name_object.replace(" ", "").lower()
+
+# Очищаем напряжение
+def clean_voltage_string(voltage):
+    # Удаляем все лишние символы, кроме цифр
+    cleaned_voltage = ''.join(filter(str.isdigit, voltage))
+    
+    # Добавляем 'кВ', если это необходимо
+    if cleaned_voltage:
+        return f"{cleaned_voltage}кВ"
+    else:
+        return None  # Если строка оказалась пустой
+
 # Функция для очистки строки ЛСР от лишних символов
 def clean_and_normalize_string(value):
     # Удаляем переводы строки и лишние пробелы
@@ -551,6 +378,122 @@ def clean_and_normalize_string(value):
 
 
 
+# СПРАВОЧНИК КЛЮЧЕВЫХ СЛОВ
+# Ввод нового ключевого слова
+def add_expense_to_epc(request):
+    if request.method == 'POST':
+        expense_name = request.POST.get('expense_name')
+        expense_epc = request.POST.get('expense_epc')
+        expense_number = request.POST.get('expense_number')
+        expense_voltage = request.POST.get('expense_voltage')
+
+        # Создаем и сохраняем новый объект
+        new_expense = ExpensesToEpcMap(
+            expenses_to_epc_map_name=expense_name, 
+            expenses_to_epc_map_epc=expense_epc, 
+            expenses_to_epc_number = expense_number,
+            expenses_to_epc_voltage_marker = expense_voltage)
+        new_expense.save()
+
+        # Перенаправляем на ту же страницу или другую по вашему выбору
+        return redirect('myapp:dict_word_page')
+
+    return render(request, 'dict_word_page.html')  # Укажите ваш шаблон
+
+# Редактирование ключевого слова
+def edit_expense_to_epc(request, expense_id):
+    try:
+        expense_full = ExpensesToEpcMap.objects.all
+        # Получаем ключевое слово по ID
+        expense = ExpensesToEpcMap.objects.get(pk=expense_id)
+
+    except ExpensesToEpcMap.DoesNotExist:
+        # Если ключевое слово не найдено, возвращаем ошибку
+        messages.error(request, "Ключевое слово не найдено.")
+        return redirect('myapp:dict_word_page')    
+
+    if request.method == 'POST':
+        # Получаем данные из формы
+        expense_name = request.POST.get('expense_name')
+        expense_epc = request.POST.get('expense_epc')
+        expense_number = request.POST.get('expense_number')
+        expense_voltage = request.POST.get('expense_voltage')
+
+        # Обновляем объект ключевого слова
+        expense.expenses_to_epc_map_name = expense_name
+        expense.expenses_to_epc_map_epc = expense_epc
+        expense.expenses_to_epc_number = expense_number
+        expense.expenses_to_epc_voltage_marker = expense_voltage
+        expense.save()
+
+        # Перенаправляем пользователя обратно на страницу списка ключевых слов или другую по вашему выбору
+        messages.success(request, "Ключевое слово успешно обновлено.")
+        return redirect('myapp:dict_word_page')
+
+    # Передаем существующие данные ключевого слова в шаблон для отображения в форме
+    context = {
+        'expense': expense_full,
+    }
+    return render(request, 'dict_word_page.html', context)
+
+# Удаление ключевого слова
+def delete_expense_to_epc(request):
+    if request.method == 'POST':
+        expense_id = request.POST.get('expense_id')
+
+        try:
+            # Находим объект и удаляем его
+            expense = ExpensesToEpcMap.objects.get(
+                expenses_to_epc_map_id=expense_id)
+            expense.delete()
+        except ExpensesToEpcMap.DoesNotExist:
+            return HttpResponse("Ключевое слово с таким ID не найдено", status=404)
+
+        # Перенаправляем на ту же страницу или другую по вашему выбору
+        return redirect('myapp:dict_word_page')
+
+    return render(request, 'dict_word_page.html')  # Укажите ваш шаблон
+
+
+
+# ПАРСИНГ
+# Парсинг локалных смет
+def parse_local_estimate_sheet(request, match_code, uploaded_file, temp_table_record):
+    try:
+        # Открываем файл Excel, получаем имена всех листов
+        xls = pd.ExcelFile(uploaded_file)
+
+        # Ищем вкладку, которая содержит идентификатор сметы match_code
+        target_sheet_name = None
+        for sheet_name in xls.sheet_names:
+            if match_code in sheet_name:
+                target_sheet_name = sheet_name
+                break
+
+        if not target_sheet_name:
+            messages.error(request, f"Ошибка при парсинге локальной сметы. Вкладка с кодом {match_code} не найдена.")
+            return
+
+        # Чтение данных из найденной вкладки
+        df = pd.read_excel(xls, sheet_name=target_sheet_name)
+
+        # Заменяем NaN на None (null в JSON)
+        df = df.replace({np.nan: None})
+
+        # Проходим по строкам этой вкладки и сохраняем данные в TempTableLocal
+        for index, row in df.iterrows():
+            row_values = row.to_dict()  # Преобразуем строку в словарь
+
+            # Записываем данные в TempTableLocal
+            TempTableLocal.objects.create(
+                temp_table=temp_table_record,
+                row_number=index + 1,  # Номер строки
+                row_data=row_values  # Данные строки в формате JSON
+            )
+        messages.success(request, f"Данные из вкладки '{target_sheet_name}' успешно сохранены в TempTableLocal.")
+    
+    except Exception as e:
+        messages.error(request, f"Ошибка при парсинге локальной сметы {match_code}: {e}")
 
 # Импорт CCR
 def add_CCR(request):
@@ -919,638 +862,25 @@ def add_UNC(request):
         messages.error(request, 'Файла нет или метод запроса не POST')
         return redirect('myapp:start')
 
-# Связывание
-def add_UNC_CCR(request):
-    try:
-        # Шаг 1: Загрузка всех ключевых слов из справочника
-        key_phrases = ExpensesToEpcMap.objects.all()
-    except Exception as e:
-        messages.error(request, f"Ошибка при загрузке ключевых слов из справочника: {e}")
-        return redirect('myapp:CCP_UNC_page')
-
-    unc_keyword_map = {}
-    try:
-        # Шаг 2: Проход по записям TempTableUNC и определение ключевых слов
-        for unc_record in TempTableUNC.objects.all():
-            matching_keywords = []
-            cleaned_name_unc = clean_string(unc_record.name_unc)
-            for key_phrase in key_phrases:
-                cleaned_key_phrase = clean_string(key_phrase.expenses_to_epc_map_epc)                
-                if cleaned_key_phrase in cleaned_name_unc:             
-                    matching_keywords.append((clean_string(key_phrase.expenses_to_epc_map_name), clean_string(key_phrase.expenses_to_epc_map_epc), key_phrase))
-
-            if matching_keywords:
-                unc_keyword_map[unc_record] = matching_keywords            
-
-    except Exception as e:
-        messages.error(request, f"Ошибка при определении ключевых слов: {e}")
-        return redirect('myapp:CCP_UNC_page')
-    
-    try:
-        # Шаг 3: Проход по записям TempTable и поиск соответствий
-        for unc_record, keywords in unc_keyword_map.items():
-            for keyword, keyword_2, key_phrase_obj in keywords:
-                for temp_record in TempTable.objects.all():
-                    if temp_record.object_costEstimate_id != '0':
-                        continue
-
-                    cleaned_expenses_name = clean_string(temp_record.expenses_name)             
-
-                    if keyword in cleaned_expenses_name:
-                        print(f"Найдено соответствие: {temp_record}")
-
-                        # Проверка на наличие дубликатов
-                        existing_record = TempTableССКUNC.objects.filter(
-                            temp_table_id=temp_record,
-                            temp_table_unc_id=unc_record,
-                        ).exists()
-
-                        # Шаг 4: Сохранение результата в TempTableССКUNC
-                        if not existing_record:
-                            TempTableССКUNC.objects.create(
-                                temp_table_id=temp_record,
-                                temp_table_unc_id=unc_record,
-                                matched_keyword=keyword,
-                                additional_info=f"ТХ: {keyword_2}",
-                                key_id=key_phrase_obj,
-                            )
-    except Exception as e:
-        messages.error(request, f"Ошибка при сохранении результатов: {e}")
-        return redirect('myapp:CCP_UNC_page')
-
-    messages.success(request, "Процесс сопоставления успешно завершен. Сохраните объект")
-    return redirect('myapp:CCP_UNC_page')
-
-# Сохранение объекта аналога
-def add_object_analog(request):
-    # Получаем все записи
-    all_temp_records = TempTable.objects.all()
-    all_CCP_UNC = TempTableССКUNC.objects.all()
-
-    # Получаем все записи из TempTableССКUNC, чтобы исключить связанные позиции
-    linked_temp_records_ids = TempTableССКUNC.objects.values_list('temp_table_id', flat=True)
-
-    try:
-        for linked_record in all_CCP_UNC:
-            project_id_unc = linked_record.temp_table_unc_id.project_id
-            if ObjectAnalog.objects.filter(project_id=project_id_unc).exists():
-                messages.error(request, f"Данный проект {project_id_unc} уже есть в базе")
-                return redirect('myapp:CCP_UNC_page')
-
-        with transaction.atomic():  # Используем транзакцию для атомарности операции
-            # Проходим по всем связанным позициям
-            for linked_record in all_CCP_UNC:
-                temp_table_record = linked_record.temp_table_id
-                temp_table_unc_record = linked_record.temp_table_unc_id
-                project_name_unc = temp_table_unc_record.project_name
-                project_id_unc = temp_table_unc_record.project_id
-                key_id = linked_record.key_id
-                matched_keyword = linked_record.matched_keyword
-                additional_info = linked_record.additional_info
-
-                # Если проект не существует, продолжаем добавление
-                if temp_table_record.expenses_name and temp_table_record.expenses_name.strip() and temp_table_record.expenses_name.lower() != 'nan':
-                    # Создаем объект ObjectAnalog для каждой связанной позиции
-                    ObjectAnalog.objects.create(
-                        project_id=project_id_unc,
-                        project_name=project_name_unc,
-                        chapter_id=temp_table_record.chapter_id,
-                        object_costEstimate_id=temp_table_record.object_costEstimate_id,
-                        local_costEstimate_id=temp_table_record.local_costEstimate_id,
-                        expenses_name=temp_table_record.expenses_name,
-                        quarter=temp_table_record.quarter,
-                        construction_cost=temp_table_record.construction_cost,
-                        installation_cost=temp_table_record.installation_cost,
-                        equipment_cost=temp_table_record.equipment_cost,
-                        other_cost=temp_table_record.other_cost,
-                        total_cost=temp_table_record.total_cost,
-                        unc_code=temp_table_unc_record.unc_code,
-                        name_unc=temp_table_unc_record.name_unc,
-                        name_object=temp_table_unc_record.name_object,
-                        voltage=temp_table_unc_record.voltage,
-                        TX=temp_table_unc_record.TX,
-                        count=temp_table_unc_record.count,
-                        unit=temp_table_unc_record.unit,
-                        matched_keyword=matched_keyword,
-                        additional_info=additional_info,
-                        key_id=key_id, 
-                    )
-
-            # Проходим по всем несвязанным позициям из TempTable, которые не имеют связей с TempTableUNC
-            unlinked_temp_records = all_temp_records.exclude(
-                id__in=linked_temp_records_ids)
-
-            for unlinked_record in unlinked_temp_records:
-                if unlinked_record.expenses_name and unlinked_record.expenses_name.strip() and unlinked_record.expenses_name.lower() != 'nan':
-                    # Создаем объект ObjectAnalog только с данными из TempTable, без привязки к УНЦ
-                    ObjectAnalog.objects.create(
-                        project_id=project_id_unc,
-                        # Здесь можно оставить пустым или заполнить, если есть данные
-                        project_name=project_name_unc,
-                        chapter_id=unlinked_record.chapter_id,
-                        object_costEstimate_id=unlinked_record.object_costEstimate_id,
-                        local_costEstimate_id=unlinked_record.local_costEstimate_id,
-                        expenses_name=unlinked_record.expenses_name,
-                        quarter=unlinked_record.quarter,
-                        construction_cost=unlinked_record.construction_cost,
-                        installation_cost=unlinked_record.installation_cost,
-                        equipment_cost=unlinked_record.equipment_cost,
-                        other_cost=unlinked_record.other_cost,
-                        total_cost=unlinked_record.total_cost,
-                        unc_code="",
-                        name_unc="",
-                        name_object="",
-                        voltage="",
-                        TX="",
-                        count=None,
-                        unit="",
-                        matched_keyword="",
-                        additional_info="",
-                    )
-                else:
-                    print('Строка пустая')
-
-        # Если операция завершена успешно, можно вернуть соответствующее сообщение
-        messages.success(request, f"Объект аналог успешно сохранен")
-        return redirect('myapp:CCP_UNC_page')
-
-    except Exception as e:
-        # Если произошла ошибка, транзакция будет откатана
-        messages.error(request, f"Ошибка в сохранении объекта аналога {e}")
-        return redirect('myapp:CCP_UNC_page')
-
-# Сохранение всех строк ОА
-def save_all_object_analogs(request, project_id):
+# Очистка списка парсинга
+def delete_temp(request):
     if request.method == 'POST':
-        all_object_analog = ObjectAnalog.objects.filter(project_id=project_id)
+        # Удаляем все записи из TempTable
+        TempTable.objects.all().delete()
 
-        for record in all_object_analog:
-            # Проверяем наличие флага проверки
-            is_checked = f'is_check_{record.id}' in request.POST
-            description = request.POST.get(f'description_{record.id}', '')
+        # Удаляем все записи из TempTableUNC
+        TempTableUNC.objects.all().delete()
 
-            # Обновляем данные
-            record.is_check = is_checked
-            record.description = description
-            record.save()
+        # Перенаправляем пользователя после удаления
+        # Замените 'some_page' на нужный URL или название маршрута
+        return redirect('myapp:start')
+    else:
+        # Замените 'some_page' на нужный URL или название маршрута
+        return redirect('myapp:start')
 
-        messages.success(request, "Все изменения сохранены.")
-        return redirect('myapp:object_analog_content', project_id=project_id)
 
-# Сохранение всех строк ОА в связанных ССР
-def save_all_object_analogs_CCR_UNC(request, project_id):
 
-    if request.method == 'POST':
-        all_expenses_by_epc = ExpensesByEpc.objects.filter(expense_id__summary_estimate_calculation__invest_project_id=project_id)
-
-        for record in all_expenses_by_epc:
-            # Проверяем наличие флага проверки
-            is_checked = f'check_{record.expenses_by_epc_id}' in request.POST
-            description = request.POST.get(f'description_{record.expenses_by_epc_id}', '')
-
-            # Обновляем данные
-            record.is_check = is_checked
-            record.description = description
-            record.save()
-
-        messages.success(request, "Все изменения сохранены.")
-        return redirect('myapp:object_analog_content_2', project_id=project_id)
-
-# Сохранение всех строк ОА в связанных ССР_УНЦ
-def save_all_object_analogs_CCR(request, project_id):
-
-    if request.method == 'POST':
-        all_expenses_by_epc = ExpensesByEpc.objects.filter(expense_id__summary_estimate_calculation__invest_project_id=project_id)
-
-        for record in all_expenses_by_epc:
-            # Проверяем наличие флага проверки
-            is_checked = f'check_{record.expenses_by_epc_id}' in request.POST
-            description = request.POST.get(f'description_{record.expenses_by_epc_id}', '')
-
-            # Обновляем данные
-            record.is_check = is_checked
-            record.description = description
-            record.save()
-
-        messages.success(request, "Все изменения сохранены.")
-        return redirect('myapp:object_analog_content_2', project_id=project_id)
-
-# Сохранение всех строк ОА в связанных ССР
-def save_all_object_analogs_CCR(request, project_id):
-    if request.method == 'POST':
-        # Обработка записей ExpensesByEpc
-        all_expenses_by_epc = ExpensesByEpc.objects.filter(expense_id__summary_estimate_calculation__invest_project_id=project_id)
-
-        for record in all_expenses_by_epc:
-            # Проверяем наличие флага проверки
-            is_checked = f'check_{record.expenses_by_epc_id}' in request.POST
-            description = request.POST.get(f'description_{record.expenses_by_epc_id}', '')
-
-            # Обновляем данные
-            record.is_check = is_checked
-            record.description = description
-            record.save()
-
-        # Обработка записей Expenses
-        all_expenses = Expenses.objects.filter(summary_estimate_calculation__invest_project_id=project_id)
-
-        for record in all_expenses:
-            # Проверяем наличие флага проверки
-            is_checked = f'check_{record.expense_id}' in request.POST
-            description = request.POST.get(f'description_{record.expense_id}', '')
-
-            # Обновляем данные
-            record.is_check = is_checked
-            record.description = description
-            record.save()
-
-        messages.success(request, "Все изменения сохранены.")
-        return redirect('myapp:object_analog_content_2', project_id=project_id)
-
-
-# Связывание_2
-def add_UNC_CCR_2(request, project):
-    try:
-        # Шаг 1: Загрузка всех ключевых слов из справочника
-        key_phrases = ExpensesToEpcMap.objects.all()
-    except Exception as e:
-        messages.error(request, f"Ошибка при загрузке ключевых слов из справочника: {e}")
-        return redirect('myapp:CCP_UNC_page')
-
-    unc_keyword_map = {}
-    try:
-        # Шаг 2: Проход по записям EpcCosts и определение ключевых слов
-        epc_costs_records = EpcCosts.objects.filter(object__invest_project=project)
-        for epc_cost_record in epc_costs_records:
-            matching_keywords = []
-            cleaned_name_unc = clean_string(epc_cost_record.name_unc)            
-            for key_phrase in key_phrases:
-                cleaned_key_phrase = clean_string(key_phrase.expenses_to_epc_map_epc)
-                if cleaned_key_phrase in cleaned_name_unc:                    
-                    matching_keywords.append((clean_string(key_phrase.expenses_to_epc_map_name), cleaned_key_phrase, key_phrase))
-
-            if matching_keywords:
-                unc_keyword_map[epc_cost_record] = matching_keywords                
-
-    except Exception as e:
-        messages.error(request, f"Ошибка при определении ключевых слов: {e}")
-        return redirect('myapp:CCP_UNC_page')
-
-    try:
-        # Шаг 3: Проход по записям Expenses и поиск соответствий
-        expenses_records = Expenses.objects.filter(summary_estimate_calculation__invest_project=project)
-        for epc_cost_record, keywords in unc_keyword_map.items():
-            for keyword, keyword_2, key_phrase_obj in keywords:
-                for expense_record in expenses_records:
-
-                    # Пропускаем записи, у которых заполнено поле object_cost_estimate
-                    if expense_record.object_cost_estimate is not None:
-                        continue
-
-                    cleaned_expenses_name = clean_string(expense_record.expense_nme)
-
-                    if keyword in cleaned_expenses_name:
-
-                        # Проверка на наличие дубликатов
-                        existing_record = ExpensesByEpc.objects.filter(
-                            epc_costs_id=epc_cost_record,
-                            expense_id=expense_record.expense_id,
-                        ).exists()
-
-                        # Шаг 4: Сохранение результата в ExpensesByEpc
-                        if not existing_record:
-                            try:
-                                ExpensesByEpc.objects.create(
-                                    epc_costs_id=epc_cost_record,
-                                    expense_id=expense_record,
-                                    dict_typical_epc_work_id=None,
-                                    dict_budgeting_id=None,
-                                    expenses_to_epc_map_id=key_phrase_obj,
-                                    expenses_by_epc_nme=keyword,
-                                )
-
-                            except Exception as e:
-                                messages.error(request, f"Ошибка при сохранении: {e}")                            
-    except Exception as e:
-        messages.error(request, f"Ошибка при сохранении результатов: {e}")
-        return redirect('myapp:CCP_UNC_page')
-
-    messages.success(request, "Процесс сопоставления успешно завершен. Объект аналог сохранен")
-    return redirect('myapp:CCP_UNC_page')
-
-# Связывание_3
-def add_UNC_CCR_3(request, project):
-    try:
-        # Шаг 1: Загрузка всех ключевых слов из справочника
-        key_phrases = ExpensesToEpcMap.objects.all()
-    except Exception as e:
-        messages.error(request, f"Ошибка при загрузке ключевых слов из справочника: {e}")
-        return redirect('myapp:CCP_UNC_page')
-
-    unc_keyword_map = {}
-    unc_keyword_map_local = {}
-    try:
-        # Шаг 2: Проход по записям EpcCosts и определение ключевых слов
-        epc_costs_records = EpcCosts.objects.filter(object__invest_project=project)
-        for epc_cost_record in epc_costs_records:
-            matching_keywords = []
-            matching_keywords_local = []
-            cleaned_name_unc = clean_string(epc_cost_record.name_unc)            
-            cleaned_voltage = clean_voltage_string(epc_cost_record.voltage)
-            name_object = clean_object_name(epc_cost_record.name_object)
-            # Проверка наличия ключевой фразы в поле name_unc или voltage
-            for key_phrase in key_phrases:
-                cleaned_key_phrase = clean_string(key_phrase.expenses_to_epc_map_epc)
-
-                if cleaned_key_phrase in cleaned_name_unc:
-                    entry = (
-                        clean_string(key_phrase.expenses_to_epc_map_name),
-                        cleaned_key_phrase,
-                        key_phrase,
-                        cleaned_voltage,
-                        name_object
-                    )
-
-                    # Разделение в зависимости от expenses_to_epc_number
-                    if key_phrase.expenses_to_epc_number == 1:
-                        matching_keywords.append(entry)
-
-                    elif key_phrase.expenses_to_epc_number == 2:
-                        matching_keywords_local.append(entry)   
-                    
-            # Добавление в словари только если есть соответствующие данные
-            if matching_keywords:
-                unc_keyword_map[epc_cost_record] = matching_keywords
-
-            if matching_keywords_local:
-                unc_keyword_map_local[epc_cost_record] = matching_keywords_local              
-
-    except Exception as e:
-        messages.error(request, f"Ошибка при определении ключевых слов: {e}")
-        return redirect('myapp:CCP_UNC_page')
-
-    try:
-        # Шаг 3: Проход по записям Expenses и поиск соответствий
-        expenses_records = Expenses.objects.filter(summary_estimate_calculation__invest_project=project) 
-
-        # Шаг 2: Обрабатываем каждую запись по отдельности
-        for expense_record in expenses_records:
-            process_expense_record(expense_record, unc_keyword_map, unc_keyword_map_local)
-
-    except Exception as e:
-        messages.error(request, f"Ошибка при сохранении результатов: {e}")
-        return redirect('myapp:CCP_UNC_page')
-
-    messages.success(request, "Процесс сопоставления успешно завершен. Объект аналог сохранен")
-    return redirect('myapp:CCP_UNC_page')
-
-# Связывание_3.Прогон позиций затрат 
-def process_expense_record(expense_record, unc_keyword_map, unc_keyword_map_local):
-
-    # Пропускаем записи, у которых заполнено поле object_cost_estimate
-    if expense_record.object_cost_estimate is not None:
-        return
-
-    local_match_found = False
-    channel_layer = get_channel_layer()
-
-    # Отдельно анализируем локальные сметы
-    if expense_record.local_cost_estimate is not None:
-        # Берем одну локальную смету
-        local_cost_estimate = expense_record.local_cost_estimate
-
-        # Получаем все записи из LocalEstimateData, связанные с этой сметой
-        local_records = LocalEstimateData.objects.filter(local_cost_estimate=local_cost_estimate)
-
-        # Передаем все записи LocalEstimateData для этой сметы в process_local_estimates
-        local_match_found = process_local_estimates(local_records, unc_keyword_map_local, expense_record)
-
-        LCR = expense_record.local_cost_estimate.local_cost_estimate_code        
-
-        if local_match_found:
-            # Отправляем уведомление через WebSocket
-            async_to_sync(channel_layer.group_send)(
-                "notifications_group",  # имя группы
-                {
-                    "type": "send_notification",
-                    "message": f"Смета {LCR} сопоставлена",
-                },
-            )
-        else:
-            # Отправляем уведомление через WebSocket
-            async_to_sync(channel_layer.group_send)(
-                "notifications_group",  # имя группы
-                {
-                    "type": "send_notification",
-                    "message": f"Смета {LCR} отправлена на распознование по имени ЛСР",
-                },
-            )
-
-    # Переходим к проверке ключевых слов
-    cleaned_expenses_name = clean_string(expense_record.expense_nme)
-    match_found = False  # Флаг для определения, найдено ли совпадение
-    save_record = False
-
-    # Проверяем расход по каждому ключевому слову
-    channel_layer = get_channel_layer()
-
-    for epc_cost_record, keywords in unc_keyword_map.items():
-        for keyword, keyword_2, key_phrase_obj, cleaned_voltage, name_object in keywords:
-            if keyword in cleaned_expenses_name:
-
-                voltage_found = cleaned_voltage in cleaned_expenses_name if cleaned_voltage else False
-                object_name_found = name_object in cleaned_expenses_name if name_object else False  
-
-                print(f'Найдено ключевое слово "{keyword}" с voltage_found "{voltage_found}" Найдено имя объекта "{object_name_found}"')                            
-
-                # Если найдено хотя бы одно совпадение
-
-                if voltage_found or object_name_found:
-                    save_record = True
-                else:
-                    save_record = True  
-
-                if save_record:
-
-                    # Проверка на наличие дубликатов
-                    existing_record = ExpensesByEpc.objects.filter(
-                        epc_costs_id=epc_cost_record,
-                        expense_id=expense_record.expense_id,
-                    ).exists()
-
-                    if not existing_record:
-                        try:
-                            # Создаем запись с совпадениями
-                            ExpensesByEpc.objects.create(
-                                epc_costs_id=epc_cost_record,
-                                expense_id=expense_record,
-                                dict_typical_epc_work_id=None,
-                                dict_budgeting_id=None,
-                                expenses_to_epc_map_id=key_phrase_obj,
-                                expenses_by_epc_nme=keyword,
-                            )                                    
-                            match_found = True  # Указываем, что совпадение найдено
-                            async_to_sync(channel_layer.group_send)(
-                                "notifications_group",  # имя группы
-                                {
-                                    "type": "send_notification",
-                                    "message": f"Затрату {cleaned_expenses_name} удалось связать",
-                                },
-                            )
-                        except Exception as e:
-                            print(f"Ошибка при сохранении: {e}")
-
-
-    if not match_found:
-        async_to_sync(channel_layer.group_send)(
-            "notifications_group",  # имя группы
-            {
-                "type": "send_notification",
-                "message": f"Затрату  {cleaned_expenses_name} не удалось связать",
-            },
-        )
-
-# Связывание_3.Анализ локальных смет
-def process_local_estimates(local_estimates, unc_keyword_map_local, expense_record):
-    match_found = False
-    similarity_threshold = 0.42
-    object_name_found = False
-
-    # Перебираем локальные сметы
-    for local_record in local_estimates:
-        row_data = local_record.row_data
-
-        # Ищем совпадение по каждому EpcCosts и ключевым словам
-        for epc_cost_record, keywords_info in unc_keyword_map_local.items():
-            for keyword, cleaned_key_phrase, key_phrase_obj, cleaned_voltage, name_object in keywords_info:   
-                
-                # Сначала проверяем, принадлежит ли строка к объекту
-                for key, value in row_data.items():
-                    
-                    if object_name_found:
-                        break  # Если имя объекта уже найдено, выходим из цикла поиска объекта                    
-                    value_str = clean_and_normalize_string(str(value)).lower()
-
-                    # Проверяем наличие имени объекта
-                    similarity = difflib.SequenceMatcher(None, name_object, value_str).ratio()
-                    if similarity >= similarity_threshold:
-                        object_name_found = True
-                        break  # Прекращаем дальнейший поиск объекта
-
-                keyword_found = False
-                voltage_found = False
-                match = None
-                next_part = None
-
-                for key, value in row_data.items():
-                    value_str = clean_and_normalize_string(str(value)).lower()   
-                    save_record = False                                
-
-                    # Проверяем наличие ключевого слова
-                    keyword_position = value_str.find(keyword.lower())
-                    if keyword_position != -1:
-                        keyword_found = True                    
-
-                        # Проверяем напряжение сразу после ключевого слова         
-                        voltage_match = re.search(r'\d{1,3}(,\d{1})?кв', value_str, re.IGNORECASE)
-                       
-                        # Проверка на наличие фразы "до" перед напряжением
-                        if "до" in value_str:
-                            # Проверяем, что перед напряжением идет фраза "до" (например, "Кабель до 35 кВ")
-                            range_match = re.search(r'до\s*(\d{1,3})(,\d{1})?\s*кв', value_str, re.IGNORECASE)
-                            if range_match:
-                                voltage_found = True
-
-                                # Если найдено напряжение, проверяем, попадает ли оно в диапазон
-                                if voltage_match:
-                                    found_voltage = float(voltage_match.group(0).replace('кв', '').replace(',', '.').strip())
-                                    cleaned_voltage_normalized = float(re.sub(r'[^\d,]', '', cleaned_voltage).replace(',', '.'))
-                                    
-                                    if 0 <= cleaned_voltage_normalized <= found_voltage:
-                                        print(f'Напряжение {cleaned_voltage_normalized} кВ попадает в диапазон до {found_voltage} кВ')
-                                        save_record = True
-                                    else:
-                                        save_record = False
-                                else:
-                                    save_record = False
-                        else:
-                            if voltage_match:
-                                match = voltage_match.group(0).strip().lower()  # Убираем пробелы и приводим к нижнему регистру
-                                cleaned_voltage_normalized = cleaned_voltage.strip().lower()  # Убираем пробелы и приводим к нижнему регистру
-                                voltage_found = True
-
-                                # Сравниваем напряжение с cleaned_voltage
-                                if match == cleaned_voltage_normalized:
-                                    save_record = True
-                                else:
-                                    save_record = False
-                            else:
-                                voltage_found = False
-                                save_record = True
-
-                # Если ключевое слово найдено и (напряжение или имя объекта) также найдены, создаем запись                
-                if keyword_found and (voltage_found or object_name_found):
-                    print(f'Найдено ключевое слово "{keyword}" с cleaned_voltage "{match} = {cleaned_voltage}" {voltage_found} next_part: "{next_part}" Найдено имя объекта "{name_object}"')
-                    
-                    if save_record:
-                        # Проверка на наличие дубликатов
-                        existing_record = ExpensesByEpc.objects.filter(
-                            epc_costs_id=epc_cost_record,
-                            expense_id=expense_record
-                        ).exists()
-                        
-                        if not existing_record:
-                            try:
-                                ExpensesByEpc.objects.create(
-                                    epc_costs_id=epc_cost_record,
-                                    expense_id=expense_record,
-                                    dict_typical_epc_work_id=None,
-                                    dict_budgeting_id=None,
-                                    expenses_to_epc_map_id=key_phrase_obj,
-                                    expenses_by_epc_nme=keyword,
-                                )
-                                match_found = True
-                                
-                            except Exception as e:
-                                print(f"Ошибка при сохранении записи для сметы {local_record.local_cost_estimate.local_cost_estimate_code}: {e}")               
-                
-    return match_found
-
-# Связывание
-def re_add_UNC_CCR_2(request, project_id):
-    # Получаем объект проекта по project_id
-    invest_project = get_object_or_404(InvestProject, pk=project_id)
-
-    # Получаем все сводные сметы расчета, связанные с объектами этого проекта
-    try:
-        summary_estimates = SummaryEstimateCalculation.objects.get(invest_project=invest_project)
-    except SummaryEstimateCalculation.DoesNotExist:
-        summary_estimates = None
-
-    if summary_estimates:
-        # Получаем все расходы, связанные с данной сводной сметой
-        filtered_expenses = Expenses.objects.filter(summary_estimate_calculation=summary_estimates)
-
-        # Получаем идентификаторы всех записей расходов
-        expense_ids = filtered_expenses.values_list('expense_id', flat=True)
-        
-        # Фильтруем связанные записи в ExpensesByEpc по идентификаторам расходов
-        filtered_expenses_by_epc = ExpensesByEpc.objects.filter(expense_id__in=expense_ids)
-
-        # Удаляем записи из ExpensesByEpc, связанные с удаленными расходами
-        if filtered_expenses_by_epc.exists():
-            num_deleted_by_epc, _ = filtered_expenses_by_epc.delete()
-            # Вызов функции связывания после миграции данных
-            add_UNC_CCR_3(request, invest_project)
-            messages.success(request, f"Удалено {num_deleted_by_epc} записей из ExpensesByEpc.")
-        else:
-            # Вызов функции связывания после миграции данных
-            add_UNC_CCR_3(request, invest_project)
-            messages.error(request, f"Не найдены записи о связаных позициях из ExpensesByEpc.") 
-
-    messages.success(request, "Процесс пересопоставления успешно завершен. Объект аналог изменен")
-    return redirect('myapp:object_analog_2')
-
+# МИГРАЦИЯ
 # Формирование проекта с ОА
 @transaction.atomic
 def migrate_data_to_main_tables(request):
@@ -1703,4 +1033,729 @@ def migrate_data_to_main_tables(request):
     except Exception as e:
         messages.error(request, f"Ошибка при переносе: {e}")
         return redirect('myapp:start')
+
+
+
+# ОБЪЕКТЫ АНАЛОГИ
+# Удаление ОА
+def delete_object_analog(request, project_id):
+    try:
+        # Удаляем все записи, связанные с данным проектом
+        deleted_count, _ = ObjectAnalog.objects.filter(
+            project_id=project_id).delete()
+
+        # Сообщаем пользователю об успешном удалении
+    except Exception as e:
+        # Если произошла ошибка, сообщаем об этом пользователю
+        messages.error(
+            request, f"Ошибка при удалении записей для проекта с ID {project_id}: {e}")
+
+    # Перенаправляем пользователя на страницу после выполнения операции
+    messages.success(
+        request, f"Успешно удалено {deleted_count} записей для проекта с ID {project_id}")
+    # Укажите правильный URL-имя для редиректа
+    return redirect('myapp:object_analog')
+
+# Удаление ОА_2
+def delete_object_analog_2(request, project_id):
+    try:
+        # Удаляем все записи, связанные с данным проектом
+        deleted_count, _ = InvestProject.objects.filter(invest_project_id=project_id).delete()
+
+        # Сообщаем пользователю об успешном удалении
+    except Exception as e:
+        # Если произошла ошибка, сообщаем об этом пользователю
+        messages.error(request, f"Ошибка при удалении записей для проекта с ID {project_id}: {e}")
+
+    # Перенаправляем пользователя на страницу после выполнения операции
+    messages.success(request, f"Успешно удалено {deleted_count} записей для проекта с ID {project_id}")
+    # Укажите правильный URL-имя для редиректа
+    return redirect('myapp:object_analog_2')
+
+# Сохранение всех строк ОА в связанных ССР
+def save_all_object_analogs_CCR_UNC(request, project_id):
+
+    if request.method == 'POST':
+        all_expenses_by_epc = ExpensesByEpc.objects.filter(expense_id__summary_estimate_calculation__invest_project_id=project_id)
+
+        for record in all_expenses_by_epc:
+            # Проверяем наличие флага проверки
+            is_checked = f'check_{record.expenses_by_epc_id}' in request.POST
+            description = request.POST.get(f'description_{record.expenses_by_epc_id}', '')
+
+            # Обновляем данные
+            record.is_check = is_checked
+            record.description = description
+            record.save()
+
+        messages.success(request, "Все изменения сохранены.")
+        return redirect('myapp:object_analog_content_2', project_id=project_id)
+
+# Сохранение всех строк ОА в связанных ССР_УНЦ
+def save_all_object_analogs_CCR(request, project_id):
+
+    if request.method == 'POST':
+        all_expenses_by_epc = ExpensesByEpc.objects.filter(expense_id__summary_estimate_calculation__invest_project_id=project_id)
+
+        for record in all_expenses_by_epc:
+            # Проверяем наличие флага проверки
+            is_checked = f'check_{record.expenses_by_epc_id}' in request.POST
+            description = request.POST.get(f'description_{record.expenses_by_epc_id}', '')
+
+            # Обновляем данные
+            record.is_check = is_checked
+            record.description = description
+            record.save()
+
+        messages.success(request, "Все изменения сохранены.")
+        return redirect('myapp:object_analog_content_2', project_id=project_id)
+
+# Сохранение всех строк ОА в связанных ССР
+def save_all_object_analogs_CCR(request, project_id):
+    if request.method == 'POST':
+        # Обработка записей ExpensesByEpc
+        all_expenses_by_epc = ExpensesByEpc.objects.filter(expense_id__summary_estimate_calculation__invest_project_id=project_id)
+
+        for record in all_expenses_by_epc:
+            # Проверяем наличие флага проверки
+            is_checked = f'check_{record.expenses_by_epc_id}' in request.POST
+            description = request.POST.get(f'description_{record.expenses_by_epc_id}', '')
+
+            # Обновляем данные
+            record.is_check = is_checked
+            record.description = description
+            record.save()
+
+        # Обработка записей Expenses
+        all_expenses = Expenses.objects.filter(summary_estimate_calculation__invest_project_id=project_id)
+
+        for record in all_expenses:
+            # Проверяем наличие флага проверки
+            is_checked = f'check_{record.expense_id}' in request.POST
+            description = request.POST.get(f'description_{record.expense_id}', '')
+
+            # Обновляем данные
+            record.is_check = is_checked
+            record.description = description
+            record.save()
+
+        messages.success(request, "Все изменения сохранены.")
+        return redirect('myapp:object_analog_content_2', project_id=project_id)
+
+
+
+# СВЯЗЫВАНИЕ
+# Связывание_3
+def add_UNC_CCR_3(request, project):
+    try:
+        # Шаг 1: Загрузка всех ключевых слов из справочника
+        key_phrases = ExpensesToEpcMap.objects.all()
+    except Exception as e:
+        messages.error(request, f"Ошибка при загрузке ключевых слов из справочника: {e}")
+        return redirect('myapp:CCP_UNC_page')
+
+    unc_keyword_map = {}
+    unc_keyword_map_local = {}
+    try:
+        # Шаг 2: Проход по записям EpcCosts и определение ключевых слов
+        epc_costs_records = EpcCosts.objects.filter(object__invest_project=project)
+        
+        for epc_cost_record in epc_costs_records:
+            matching_keywords = []
+            matching_keywords_local = []
+            cleaned_name_unc = clean_string(epc_cost_record.name_unc)            
+            cleaned_voltage = clean_voltage_string(epc_cost_record.voltage)
+            name_object = clean_object_name(epc_cost_record.name_object)
+            # Проверка наличия ключевой фразы в поле name_unc или voltage
+            for key_phrase in key_phrases:
+                cleaned_key_phrase = clean_string(key_phrase.expenses_to_epc_map_epc)
+
+                if cleaned_key_phrase in cleaned_name_unc:
+                    entry = (
+                        clean_string(key_phrase.expenses_to_epc_map_name),
+                        cleaned_key_phrase,
+                        key_phrase,
+                        cleaned_voltage,
+                        name_object,
+                        key_phrase.expenses_to_epc_voltage_marker
+                    )
+
+                    # Разделение в зависимости от expenses_to_epc_number
+                    if key_phrase.expenses_to_epc_number == 1:
+                        matching_keywords.append(entry)
+
+                    elif key_phrase.expenses_to_epc_number == 2:
+                        matching_keywords_local.append(entry)   
+                    
+            # Добавление в словари только если есть соответствующие данные
+            if matching_keywords:
+                unc_keyword_map[epc_cost_record] = matching_keywords
+
+            if matching_keywords_local:
+                unc_keyword_map_local[epc_cost_record] = matching_keywords_local              
+
+    except Exception as e:
+        messages.error(request, f"Ошибка при определении ключевых слов: {e}")
+        return redirect('myapp:CCP_UNC_page')
+
+    try:
+        # Шаг 3: Проход по записям Expenses и поиск соответствий
+        expenses_records = Expenses.objects.filter(summary_estimate_calculation__invest_project=project) 
+
+        # Шаг 2: Обрабатываем каждую запись по отдельности
+        for expense_record in expenses_records:
+            process_expense_record(expense_record, unc_keyword_map, unc_keyword_map_local)
+
+    except Exception as e:
+        messages.error(request, f"Ошибка при сохранении результатов: {e}")
+        return redirect('myapp:CCP_UNC_page')
+
+    messages.success(request, "Процесс сопоставления успешно завершен. Объект аналог сохранен")
+    return redirect('myapp:CCP_UNC_page')
+
+# Связывание_3.Анализ позиций затрат по имени
+def process_expense_record(expense_record, unc_keyword_map, unc_keyword_map_local):
+
+    # Пропускаем записи, у которых заполнено поле object_cost_estimate
+    if expense_record.object_cost_estimate is not None:
+        return
+
+    local_match_found = False
+    channel_layer = get_channel_layer()
+
+    # Отдельно анализируем локальные сметы
+    if expense_record.local_cost_estimate is not None:
+        # Берем одну локальную смету
+        local_cost_estimate = expense_record.local_cost_estimate
+
+        # Получаем все записи из LocalEstimateData, связанные с этой сметой
+        local_records = LocalEstimateData.objects.filter(local_cost_estimate=local_cost_estimate)
+
+        # Передаем все записи LocalEstimateData для этой сметы в process_local_estimates
+        local_match_found = process_local_estimates(local_records, unc_keyword_map_local, expense_record)
+
+        LCR = expense_record.local_cost_estimate.local_cost_estimate_code        
+
+        if local_match_found:
+            # Отправляем уведомление через WebSocket
+            async_to_sync(channel_layer.group_send)(
+                "notifications_group",  # имя группы
+                {
+                    "type": "send_notification",
+                    "message": f"Смета {LCR} сопоставлена",
+                },
+            )
+        else:
+            # Отправляем уведомление через WebSocket
+            async_to_sync(channel_layer.group_send)(
+                "notifications_group",  # имя группы
+                {
+                    "type": "send_notification",
+                    "message": f"Смета {LCR} отправлена на распознование по имени ЛСР",
+                },
+            )
+
+    # Переходим к проверке ключевых слов
+    cleaned_expenses_name = clean_string(expense_record.expense_nme)
+    match_found = False  # Флаг для определения, найдено ли совпадение
+    save_record = False
+
+    # Проверяем расход по каждому ключевому слову
+    for epc_cost_record, keywords in unc_keyword_map.items():
+        for keyword, keyword_2, key_phrase_obj, cleaned_voltage, name_object, voltage_marker  in keywords:
+            if keyword in cleaned_expenses_name:
+
+                voltage_found = (voltage_marker == 1) or (voltage_marker == 2 and cleaned_voltage in cleaned_expenses_name)
+
+                object_name_found = name_object in cleaned_expenses_name if name_object else False  
+
+                print(f'Найдено ключевое слово "{keyword}" с voltage_found "{voltage_found}" Найдено имя объекта "{object_name_found}"')                            
+
+                # Если найдено хотя бы одно совпадение
+
+                if voltage_found or object_name_found:
+                    save_record = True
+                else:
+                    save_record = False
+
+                if save_record:
+
+                    # Проверка на наличие дубликатов
+                    existing_record = ExpensesByEpc.objects.filter(
+                        epc_costs_id=epc_cost_record,
+                        expense_id=expense_record.expense_id,
+                    ).exists()
+
+                    if not existing_record:
+                        try:
+                            # Создаем запись с совпадениями
+                            ExpensesByEpc.objects.create(
+                                epc_costs_id=epc_cost_record,
+                                expense_id=expense_record,
+                                dict_typical_epc_work_id=None,
+                                dict_budgeting_id=None,
+                                expenses_to_epc_map_id=key_phrase_obj,
+                                expenses_by_epc_nme=keyword,
+                            )                                    
+                            match_found = True  # Указываем, что совпадение найдено
+                            async_to_sync(channel_layer.group_send)(
+                                "notifications_group",  # имя группы
+                                {
+                                    "type": "send_notification",
+                                    "message": f"Затрату {cleaned_expenses_name} удалось связать",
+                                },
+                            )
+                        except Exception as e:
+                            print(f"Ошибка при сохранении: {e}")
+
+
+    if not match_found:
+        async_to_sync(channel_layer.group_send)(
+            "notifications_group",  # имя группы
+            {
+                "type": "send_notification",
+                "message": f"Затрату  {cleaned_expenses_name} не удалось связать",
+            },
+        )
+
+# Связывание_3.Анализ локальных смет
+def process_local_estimates(local_estimates, unc_keyword_map_local, expense_record):
+    match_found = False
+    similarity_threshold = 0.42
+    object_name_found = False
+    save_record = False
+    keyword_found = False
+    voltage_found = False
+    match = None
+
+    # Перебираем локальные сметы
+    for local_record in local_estimates:
+        row_data = local_record.row_data
+
+        # Ищем совпадение по каждому EpcCosts и ключевым словам
+        for epc_cost_record, keywords_info in unc_keyword_map_local.items():
+            for keyword, cleaned_key_phrase, key_phrase_obj, cleaned_voltage, name_object, voltage_marker in keywords_info:   
+                
+                # Сначала проверяем, принадлежит ли строка к объекту
+                for key, value in row_data.items():
+                    
+                    if object_name_found:
+                        break  # Если имя объекта уже найдено, выходим из цикла поиска объекта                    
+                    value_str = clean_and_normalize_string(str(value)).lower()
+
+                    # Проверяем наличие имени объекта
+                    similarity = difflib.SequenceMatcher(None, name_object, value_str).ratio()
+                    if similarity >= similarity_threshold:
+                        object_name_found = True
+                        break  # Прекращаем дальнейший поиск объекта
+
+                for key, value in row_data.items():
+                    value_str = clean_and_normalize_string(str(value)).lower()                                                       
+
+                    # Проверяем наличие ключевого слова
+                    keyword_position = value_str.find(keyword.lower())
+
+                    if keyword_position != -1:
+                        keyword_found = True                    
+
+                        # Проверяем voltage_marker
+                        if voltage_marker == 1:
+                            # Если voltage_marker == 1, связываем только по ключевому слову, без проверки напряжения
+                            save_record = True
+                            print(f'voltage_marker == 1 save_record "{save_record}"')  
+
+                        if voltage_marker == 2:
+                            # Если voltage_marker != 1, выполняем полную проверку на напряжение
+                            print(f'voltage_marker == 2 save_record "{save_record}"')    
+ 
+                            voltage_match = re.search(r'\d{1,3}(,\d{1})?кв', value_str, re.IGNORECASE)
+                       
+                            # Проверка на наличие фразы "до" перед напряжением
+                            if "до" in value_str:
+                                # Проверяем, что перед напряжением идет фраза "до" (например, "Кабель до 35 кВ")
+                                range_match = re.search(r'до\s*(\d{1,3})(,\d{1})?\s*кв', value_str, re.IGNORECASE)
+                                if range_match:
+                                    voltage_found = True
+
+                                    # Если найдено напряжение, проверяем, попадает ли оно в диапазон
+                                    if voltage_match:
+                                        found_voltage = float(voltage_match.group(0).replace('кв', '').replace(',', '.').strip())
+                                        cleaned_voltage_normalized = float(re.sub(r'[^\d,]', '', cleaned_voltage).replace(',', '.'))
+                                        
+                                        if 0 <= cleaned_voltage_normalized <= found_voltage:
+                                            print(f'Напряжение {cleaned_voltage_normalized} кВ попадает в диапазон до {found_voltage} кВ')
+                                            save_record = True
+                                        else:
+                                            save_record = False
+                                    else:
+                                        save_record = False # Явно указываем, что не сохраняем, если не найдено соответствие напряжения
+                            else:
+                                if voltage_match:
+                                    match = voltage_match.group(0).strip().lower()  # Убираем пробелы и приводим к нижнему регистру
+                                    cleaned_voltage_normalized = cleaned_voltage.strip().lower()  # Убираем пробелы и приводим к нижнему регистру
+                                    voltage_found = True
+
+                                    # Сравниваем напряжение с cleaned_voltage
+                                    if match == cleaned_voltage_normalized:
+                                        save_record = True
+                                    else:
+                                        save_record = False
+                                else:
+                                    voltage_found = False
+                                    save_record = False # Явно указываем, что не сохраняем, если не найдено соответствие напряжения
+
+                # Если ключевое слово найдено и (напряжение или имя объекта) также найдены, создаем запись                
+                if keyword_found and (voltage_found or object_name_found or voltage_marker == 1):
+                    print(f'Найдено ключевое слово "{keyword}" с cleaned_voltage "{match} = {cleaned_voltage}" voltage={voltage_found} "Имя объекта "{name_object}"')
+                    print(f'save_record "{save_record}"')
+
+                    if save_record:                        
+                        # Проверка на наличие дубликатов
+                        existing_record = ExpensesByEpc.objects.filter(
+                            epc_costs_id=epc_cost_record,
+                            expense_id=expense_record
+                        ).exists()
+                        
+                        if not existing_record:
+                            try:
+                                ExpensesByEpc.objects.create(
+                                    epc_costs_id=epc_cost_record,
+                                    expense_id=expense_record,
+                                    dict_typical_epc_work_id=None,
+                                    dict_budgeting_id=None,
+                                    expenses_to_epc_map_id=key_phrase_obj,
+                                    expenses_by_epc_nme=keyword,
+                                )
+                                match_found = True
+                                
+                            except Exception as e:
+                                print(f"Ошибка при сохранении записи для сметы {local_record.local_cost_estimate.local_cost_estimate_code}: {e}")           
+    return match_found
+
+# Пересвязывание
+def re_add_UNC_CCR_2(request, project_id):
+    # Получаем объект проекта по project_id
+    invest_project = get_object_or_404(InvestProject, pk=project_id)
+
+    # Получаем все сводные сметы расчета, связанные с объектами этого проекта
+    try:
+        summary_estimates = SummaryEstimateCalculation.objects.get(invest_project=invest_project)
+    except SummaryEstimateCalculation.DoesNotExist:
+        summary_estimates = None
+
+    if summary_estimates:
+        # Получаем все расходы, связанные с данной сводной сметой
+        filtered_expenses = Expenses.objects.filter(summary_estimate_calculation=summary_estimates)
+
+        # Получаем идентификаторы всех записей расходов
+        expense_ids = filtered_expenses.values_list('expense_id', flat=True)
+        
+        # Фильтруем связанные записи в ExpensesByEpc по идентификаторам расходов
+        filtered_expenses_by_epc = ExpensesByEpc.objects.filter(expense_id__in=expense_ids)
+
+        # Удаляем записи из ExpensesByEpc, связанные с удаленными расходами
+        if filtered_expenses_by_epc.exists():
+            num_deleted_by_epc, _ = filtered_expenses_by_epc.delete()
+            # Вызов функции связывания после миграции данных
+            add_UNC_CCR_3(request, invest_project)
+            messages.success(request, f"Удалено {num_deleted_by_epc} записей из ExpensesByEpc.")
+        else:
+            # Вызов функции связывания после миграции данных
+            add_UNC_CCR_3(request, invest_project)
+            messages.error(request, f"Не найдены записи о связаных позициях из ExpensesByEpc.") 
+
+    messages.success(request, "Процесс пересопоставления успешно завершен. Объект аналог изменен")
+    return redirect('myapp:object_analog_2')
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# АРХИВ
+# Связывание
+def add_UNC_CCR(request):
+    try:
+        # Шаг 1: Загрузка всех ключевых слов из справочника
+        key_phrases = ExpensesToEpcMap.objects.all()
+    except Exception as e:
+        messages.error(request, f"Ошибка при загрузке ключевых слов из справочника: {e}")
+        return redirect('myapp:CCP_UNC_page')
+
+    unc_keyword_map = {}
+    try:
+        # Шаг 2: Проход по записям TempTableUNC и определение ключевых слов
+        for unc_record in TempTableUNC.objects.all():
+            matching_keywords = []
+            cleaned_name_unc = clean_string(unc_record.name_unc)
+            for key_phrase in key_phrases:
+                cleaned_key_phrase = clean_string(key_phrase.expenses_to_epc_map_epc)                
+                if cleaned_key_phrase in cleaned_name_unc:             
+                    matching_keywords.append((clean_string(key_phrase.expenses_to_epc_map_name), clean_string(key_phrase.expenses_to_epc_map_epc), key_phrase))
+
+            if matching_keywords:
+                unc_keyword_map[unc_record] = matching_keywords            
+
+    except Exception as e:
+        messages.error(request, f"Ошибка при определении ключевых слов: {e}")
+        return redirect('myapp:CCP_UNC_page')
+    
+    try:
+        # Шаг 3: Проход по записям TempTable и поиск соответствий
+        for unc_record, keywords in unc_keyword_map.items():
+            for keyword, keyword_2, key_phrase_obj in keywords:
+                for temp_record in TempTable.objects.all():
+                    if temp_record.object_costEstimate_id != '0':
+                        continue
+
+                    cleaned_expenses_name = clean_string(temp_record.expenses_name)             
+
+                    if keyword in cleaned_expenses_name:
+                        print(f"Найдено соответствие: {temp_record}")
+
+                        # Проверка на наличие дубликатов
+                        existing_record = TempTableССКUNC.objects.filter(
+                            temp_table_id=temp_record,
+                            temp_table_unc_id=unc_record,
+                        ).exists()
+
+                        # Шаг 4: Сохранение результата в TempTableССКUNC
+                        if not existing_record:
+                            TempTableССКUNC.objects.create(
+                                temp_table_id=temp_record,
+                                temp_table_unc_id=unc_record,
+                                matched_keyword=keyword,
+                                additional_info=f"ТХ: {keyword_2}",
+                                key_id=key_phrase_obj,
+                            )
+    except Exception as e:
+        messages.error(request, f"Ошибка при сохранении результатов: {e}")
+        return redirect('myapp:CCP_UNC_page')
+
+    messages.success(request, "Процесс сопоставления успешно завершен. Сохраните объект")
+    return redirect('myapp:CCP_UNC_page')
+
+# Связывание_2
+def add_UNC_CCR_2(request, project):
+    try:
+        # Шаг 1: Загрузка всех ключевых слов из справочника
+        key_phrases = ExpensesToEpcMap.objects.all()
+    except Exception as e:
+        messages.error(request, f"Ошибка при загрузке ключевых слов из справочника: {e}")
+        return redirect('myapp:CCP_UNC_page')
+
+    unc_keyword_map = {}
+    try:
+        # Шаг 2: Проход по записям EpcCosts и определение ключевых слов
+        epc_costs_records = EpcCosts.objects.filter(object__invest_project=project)
+        for epc_cost_record in epc_costs_records:
+            matching_keywords = []
+            cleaned_name_unc = clean_string(epc_cost_record.name_unc)            
+            for key_phrase in key_phrases:
+                cleaned_key_phrase = clean_string(key_phrase.expenses_to_epc_map_epc)
+                if cleaned_key_phrase in cleaned_name_unc:                    
+                    matching_keywords.append((clean_string(key_phrase.expenses_to_epc_map_name), cleaned_key_phrase, key_phrase))
+
+            if matching_keywords:
+                unc_keyword_map[epc_cost_record] = matching_keywords                
+
+    except Exception as e:
+        messages.error(request, f"Ошибка при определении ключевых слов: {e}")
+        return redirect('myapp:CCP_UNC_page')
+
+    try:
+        # Шаг 3: Проход по записям Expenses и поиск соответствий
+        expenses_records = Expenses.objects.filter(summary_estimate_calculation__invest_project=project)
+        for epc_cost_record, keywords in unc_keyword_map.items():
+            for keyword, keyword_2, key_phrase_obj in keywords:
+                for expense_record in expenses_records:
+
+                    # Пропускаем записи, у которых заполнено поле object_cost_estimate
+                    if expense_record.object_cost_estimate is not None:
+                        continue
+
+                    cleaned_expenses_name = clean_string(expense_record.expense_nme)
+
+                    if keyword in cleaned_expenses_name:
+
+                        # Проверка на наличие дубликатов
+                        existing_record = ExpensesByEpc.objects.filter(
+                            epc_costs_id=epc_cost_record,
+                            expense_id=expense_record.expense_id,
+                        ).exists()
+
+                        # Шаг 4: Сохранение результата в ExpensesByEpc
+                        if not existing_record:
+                            try:
+                                ExpensesByEpc.objects.create(
+                                    epc_costs_id=epc_cost_record,
+                                    expense_id=expense_record,
+                                    dict_typical_epc_work_id=None,
+                                    dict_budgeting_id=None,
+                                    expenses_to_epc_map_id=key_phrase_obj,
+                                    expenses_by_epc_nme=keyword,
+                                )
+
+                            except Exception as e:
+                                messages.error(request, f"Ошибка при сохранении: {e}")                            
+    except Exception as e:
+        messages.error(request, f"Ошибка при сохранении результатов: {e}")
+        return redirect('myapp:CCP_UNC_page')
+
+    messages.success(request, "Процесс сопоставления успешно завершен. Объект аналог сохранен")
+    return redirect('myapp:CCP_UNC_page')
+
+# Очистка списка связывания
+def delete_CCR_UNC(request):
+    if request.method == 'POST':
+        # Удаляем все записи из TempTableССКUNC
+        TempTableССКUNC.objects.all().delete()
+
+        # Перенаправляем пользователя после удаления
+        # Замените 'some_page' на нужный URL или название маршрута
+        return redirect('myapp:CCP_UNC_page')
+    else:
+        # Замените 'some_page' на нужный URL или название маршрута
+        return redirect('myapp:CCP_UNC_page')
+    
+# Сохранение объекта аналога
+def add_object_analog(request):
+    # Получаем все записи
+    all_temp_records = TempTable.objects.all()
+    all_CCP_UNC = TempTableССКUNC.objects.all()
+
+    # Получаем все записи из TempTableССКUNC, чтобы исключить связанные позиции
+    linked_temp_records_ids = TempTableССКUNC.objects.values_list('temp_table_id', flat=True)
+
+    try:
+        for linked_record in all_CCP_UNC:
+            project_id_unc = linked_record.temp_table_unc_id.project_id
+            if ObjectAnalog.objects.filter(project_id=project_id_unc).exists():
+                messages.error(request, f"Данный проект {project_id_unc} уже есть в базе")
+                return redirect('myapp:CCP_UNC_page')
+
+        with transaction.atomic():  # Используем транзакцию для атомарности операции
+            # Проходим по всем связанным позициям
+            for linked_record in all_CCP_UNC:
+                temp_table_record = linked_record.temp_table_id
+                temp_table_unc_record = linked_record.temp_table_unc_id
+                project_name_unc = temp_table_unc_record.project_name
+                project_id_unc = temp_table_unc_record.project_id
+                key_id = linked_record.key_id
+                matched_keyword = linked_record.matched_keyword
+                additional_info = linked_record.additional_info
+
+                # Если проект не существует, продолжаем добавление
+                if temp_table_record.expenses_name and temp_table_record.expenses_name.strip() and temp_table_record.expenses_name.lower() != 'nan':
+                    # Создаем объект ObjectAnalog для каждой связанной позиции
+                    ObjectAnalog.objects.create(
+                        project_id=project_id_unc,
+                        project_name=project_name_unc,
+                        chapter_id=temp_table_record.chapter_id,
+                        object_costEstimate_id=temp_table_record.object_costEstimate_id,
+                        local_costEstimate_id=temp_table_record.local_costEstimate_id,
+                        expenses_name=temp_table_record.expenses_name,
+                        quarter=temp_table_record.quarter,
+                        construction_cost=temp_table_record.construction_cost,
+                        installation_cost=temp_table_record.installation_cost,
+                        equipment_cost=temp_table_record.equipment_cost,
+                        other_cost=temp_table_record.other_cost,
+                        total_cost=temp_table_record.total_cost,
+                        unc_code=temp_table_unc_record.unc_code,
+                        name_unc=temp_table_unc_record.name_unc,
+                        name_object=temp_table_unc_record.name_object,
+                        voltage=temp_table_unc_record.voltage,
+                        TX=temp_table_unc_record.TX,
+                        count=temp_table_unc_record.count,
+                        unit=temp_table_unc_record.unit,
+                        matched_keyword=matched_keyword,
+                        additional_info=additional_info,
+                        key_id=key_id, 
+                    )
+
+            # Проходим по всем несвязанным позициям из TempTable, которые не имеют связей с TempTableUNC
+            unlinked_temp_records = all_temp_records.exclude(
+                id__in=linked_temp_records_ids)
+
+            for unlinked_record in unlinked_temp_records:
+                if unlinked_record.expenses_name and unlinked_record.expenses_name.strip() and unlinked_record.expenses_name.lower() != 'nan':
+                    # Создаем объект ObjectAnalog только с данными из TempTable, без привязки к УНЦ
+                    ObjectAnalog.objects.create(
+                        project_id=project_id_unc,
+                        # Здесь можно оставить пустым или заполнить, если есть данные
+                        project_name=project_name_unc,
+                        chapter_id=unlinked_record.chapter_id,
+                        object_costEstimate_id=unlinked_record.object_costEstimate_id,
+                        local_costEstimate_id=unlinked_record.local_costEstimate_id,
+                        expenses_name=unlinked_record.expenses_name,
+                        quarter=unlinked_record.quarter,
+                        construction_cost=unlinked_record.construction_cost,
+                        installation_cost=unlinked_record.installation_cost,
+                        equipment_cost=unlinked_record.equipment_cost,
+                        other_cost=unlinked_record.other_cost,
+                        total_cost=unlinked_record.total_cost,
+                        unc_code="",
+                        name_unc="",
+                        name_object="",
+                        voltage="",
+                        TX="",
+                        count=None,
+                        unit="",
+                        matched_keyword="",
+                        additional_info="",
+                    )
+                else:
+                    print('Строка пустая')
+
+        # Если операция завершена успешно, можно вернуть соответствующее сообщение
+        messages.success(request, f"Объект аналог успешно сохранен")
+        return redirect('myapp:CCP_UNC_page')
+
+    except Exception as e:
+        # Если произошла ошибка, транзакция будет откатана
+        messages.error(request, f"Ошибка в сохранении объекта аналога {e}")
+        return redirect('myapp:CCP_UNC_page')
+
+# Сохранение всех строк ОА
+def save_all_object_analogs(request, project_id):
+    if request.method == 'POST':
+        all_object_analog = ObjectAnalog.objects.filter(project_id=project_id)
+
+        for record in all_object_analog:
+            # Проверяем наличие флага проверки
+            is_checked = f'is_check_{record.id}' in request.POST
+            description = request.POST.get(f'description_{record.id}', '')
+
+            # Обновляем данные
+            record.is_check = is_checked
+            record.description = description
+            record.save()
+
+        messages.success(request, "Все изменения сохранены.")
+        return redirect('myapp:object_analog_content', project_id=project_id)
 

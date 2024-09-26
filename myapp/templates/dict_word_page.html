@@ -32,22 +32,28 @@
       </div>  
       <div class="content-btn-dict">
         <form method="post" action="{% url 'myapp:add_expense_to_epc' %}">
-            {% csrf_token %}
-            <div class="input-field">
-                <label for="expense_name">Ключевое слово для позиции из сметной документации:</label>
-                <input type="text" id="expense_name" name="expense_name" required>
-            </div>
-            <div class="input-field">
-                <label for="expense_epc">Ключевое слово технической характеристики:</label>
-                <input type="text" id="expense_epc" name="expense_epc" required>
-            </div>
-            <div class="input-field">
-              <label for="expense_number">Тип:</label>
-              <input type="text" id="expense_number" name="expense_number" required>
+          {% csrf_token %}
+          <div class="input-field">
+              <label for="expense_name">Ключевое слово для позиции из сметной документации:</label>
+              <input type="text" id="expense_name" name="expense_name" required>
           </div>
+          <div class="input-field">
+              <label for="expense_epc">Ключевое слово технической характеристики:</label>
+              <input type="text" id="expense_epc" name="expense_epc" required>
+          </div>
+          <div class="content-btn-dict-2">
+            <div class="input-field">
+              <label for="expense_number">Тип (1-имя ЛСР, 2-ЛСР):</label>
+              <input type="text" id="expense_number" name="expense_number" required>
+            </div>
+            <div class="input-field">
+              <label for="expense_voltage">Поиск по U (1-нет, 2 поиск):</label>
+              <input type="text" id="expense_voltage" name="expense_voltage" required>
+            </div>          
             <div class="content-btn">
               <button button type="submit" class="waves-effect waves-light btn save">Добавить</button>
             </div>
+          </div>
         </form>
       </div>
       <div class="content-btn-dict">
@@ -71,7 +77,8 @@
                     <th>№ п\п</th>
                     <th>Наименование позиции РПС</th>
                     <th>Ключевое слово технической характеристики</th>
-                    <th>Тип (1-поиск по имени ЛСР, 2-поиск по позицииЛСР)</th>
+                    <th>Тип поиска(1-по имени ЛСР, 2-по данным ЛСР)</th>
+                    <th>Поиск по U</th>
                     <th>Редактировать</th>
                 </tr>
             </thead>
@@ -93,6 +100,10 @@
                           <span id="number-text-{{ record.expenses_to_epc_map_id }}">{{ record.expenses_to_epc_number }}</span>
                           <input type="text" name="expense_number" id="number-input-{{ record.expenses_to_epc_map_id }}" value="{{ record.expenses_to_epc_number }}" style="display: none;">
                         </td> 
+                        <td>
+                          <span id="voltage-text-{{ record.expenses_to_epc_map_id }}">{{ record.expenses_to_epc_voltage_marker }}</span>
+                          <input type="text" name="expense_voltage" id="voltage-input-{{ record.expenses_to_epc_map_id }}" value="{{ record.expenses_to_epc_voltage_marker }}" style="display: none;">
+                        </td>
                         <td>
                           <a href="#" class="waves-effect waves-light btn edit-btn" data-id="{{ record.expenses_to_epc_map_id }}">Редактировать</a>
                           <button type="submit" id="save-btn-{{ record.expenses_to_epc_map_id }}" class="waves-effect waves-light btn save" style="display: none;">Сохранить</button>
@@ -126,9 +137,11 @@
                 document.getElementById('name-text-' + recordId).style.display = 'none';
                 document.getElementById('epc-text-' + recordId).style.display = 'none';
                 document.getElementById('number-text-' + recordId).style.display = 'none';
+                document.getElementById('voltage-text-' + recordId).style.display = 'none';
                 document.getElementById('name-input-' + recordId).style.display = 'block';
                 document.getElementById('epc-input-' + recordId).style.display = 'block';   
                 document.getElementById('number-input-' + recordId).style.display = 'block';  
+                document.getElementById('voltage-input-' + recordId).style.display = 'block';
 
                 // Скрываем кнопку "Редактировать" и показываем кнопку "Сохранить"
                 this.style.display = 'none';

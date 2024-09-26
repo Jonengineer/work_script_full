@@ -35,6 +35,13 @@ body {
     box-sizing: border-box; 
     padding: 10px; 
 }
+.content-btn-dict-2 {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+}
+
+
 
 /* Стиль для формы */
 form {
