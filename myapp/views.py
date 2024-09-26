@@ -20,6 +20,7 @@ from django.http import JsonResponse
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 import difflib
+import asyncio
 
 
 logging.basicConfig(
@@ -1319,7 +1320,7 @@ def process_expense_record(expense_record, unc_keyword_map, unc_keyword_map_loca
         )
 
 # Связывание_3.Анализ локальных смет
-def process_local_estimates(local_estimates, unc_keyword_map_local, expense_record):
+async def process_local_estimates(local_estimates, unc_keyword_map_local, expense_record):
     match_found = False
     similarity_threshold = 0.42
     object_name_found = False
@@ -1362,14 +1363,12 @@ def process_local_estimates(local_estimates, unc_keyword_map_local, expense_reco
                         if voltage_marker == 1:
                             # Если voltage_marker == 1, связываем только по ключевому слову, без проверки напряжения
                             save_record = True
-                            print(f'voltage_marker == 1 save_record "{save_record}"')  
 
                         if voltage_marker == 2:
-                            # Если voltage_marker != 1, выполняем полную проверку на напряжение
-                            print(f'voltage_marker == 2 save_record "{save_record}"')    
- 
+                            # Если voltage_marker != 1, выполняем полную проверку на напряжение 
                             voltage_match = re.search(r'\d{1,3}(,\d{1})?кв', value_str, re.IGNORECASE)
-                       
+                            range_voltage_match = re.search(r'(\d{1,3})(,\d{1})?\s*-\s*(\d{1,3})(,\d{1})?\s*кв', value_str, re.IGNORECASE)
+                            
                             # Проверка на наличие фразы "до" перед напряжением
                             if "до" in value_str:
                                 # Проверяем, что перед напряжением идет фраза "до" (например, "Кабель до 35 кВ")
@@ -1383,48 +1382,62 @@ def process_local_estimates(local_estimates, unc_keyword_map_local, expense_reco
                                         cleaned_voltage_normalized = float(re.sub(r'[^\d,]', '', cleaned_voltage).replace(',', '.'))
                                         
                                         if 0 <= cleaned_voltage_normalized <= found_voltage:
-                                            print(f'Напряжение {cleaned_voltage_normalized} кВ попадает в диапазон до {found_voltage} кВ')
                                             save_record = True
                                         else:
                                             save_record = False
                                     else:
-                                        save_record = False # Явно указываем, что не сохраняем, если не найдено соответствие напряжения
-                            else:
-                                if voltage_match:
-                                    match = voltage_match.group(0).strip().lower()  # Убираем пробелы и приводим к нижнему регистру
-                                    cleaned_voltage_normalized = cleaned_voltage.strip().lower()  # Убираем пробелы и приводим к нижнему регистру
-                                    voltage_found = True
+                                        save_record = False # Явно указываем, что не сохраняем, если не найдено соответствие напряжения                          
+                            
+                            if range_voltage_match:
+                                # Если найден диапазон напряжений, извлекаем минимальное и максимальное значения
+                                min_voltage = float(range_voltage_match.group(1).replace(',', '.'))
+                                max_voltage = float(range_voltage_match.group(3).replace(',', '.'))
 
-                                    # Сравниваем напряжение с cleaned_voltage
-                                    if match == cleaned_voltage_normalized:
-                                        save_record = True
-                                    else:
-                                        save_record = False
+                                cleaned_voltage_normalized = float(re.sub(r'[^\d,]', '', cleaned_voltage).replace(',', '.'))
+
+                                # Проверяем, входит ли наше напряжение в диапазон
+                                if min_voltage <= cleaned_voltage_normalized <= max_voltage:
+                                    save_record = True
                                 else:
-                                    voltage_found = False
-                                    save_record = False # Явно указываем, что не сохраняем, если не найдено соответствие напряжения
+                                    save_record = False                            
+                            
+                            if voltage_match:
+                                match = voltage_match.group(0).strip().lower()  # Убираем пробелы и приводим к нижнему регистру
+                                cleaned_voltage_normalized = cleaned_voltage.strip().lower()  # Убираем пробелы и приводим к нижнему регистру
+                                voltage_found = True
+
+                                # Сравниваем напряжение с cleaned_voltage
+                                if match == cleaned_voltage_normalized:
+                                    save_record = True
+                                else:
+                                    save_record = False
+                            else:
+                                voltage_found = False
+                                save_record = False 
 
                 # Если ключевое слово найдено и (напряжение или имя объекта) также найдены, создаем запись                
                 if keyword_found and (voltage_found or object_name_found or voltage_marker == 1):
-                    print(f'Найдено ключевое слово "{keyword}" с cleaned_voltage "{match} = {cleaned_voltage}" voltage={voltage_found} "Имя объекта "{name_object}"')
-                    print(f'save_record "{save_record}"')
 
                     if save_record:                        
-                        # Проверка на наличие дубликатов
-                        existing_record = ExpensesByEpc.objects.filter(
-                            epc_costs_id=epc_cost_record,
-                            expense_id=expense_record
-                        ).exists()
+                        # Асинхронная проверка на наличие дубликатов
+                        existing_record = await asyncio.to_thread(
+                            ExpensesByEpc.objects.filter(
+                                epc_costs_id=epc_cost_record,
+                                expense_id=expense_record
+                            ).exists
+                        )
                         
                         if not existing_record:
                             try:
-                                ExpensesByEpc.objects.create(
+                                # Асинхронное создание записи
+                                await asyncio.to_thread(
+                                    ExpensesByEpc.objects.create,
                                     epc_costs_id=epc_cost_record,
                                     expense_id=expense_record,
                                     dict_typical_epc_work_id=None,
                                     dict_budgeting_id=None,
                                     expenses_to_epc_map_id=key_phrase_obj,
-                                    expenses_by_epc_nme=keyword,
+                                    expenses_by_epc_nme=keyword
                                 )
                                 match_found = True
                                 
