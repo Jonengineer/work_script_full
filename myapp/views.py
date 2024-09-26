@@ -1191,9 +1191,11 @@ def add_UNC_CCR_3(request, project):
             # Добавление в словари только если есть соответствующие данные
             if matching_keywords:
                 unc_keyword_map[epc_cost_record] = matching_keywords
+                print(f'matching_keywords "{matching_keywords}"')
 
             if matching_keywords_local:
-                unc_keyword_map_local[epc_cost_record] = matching_keywords_local              
+                unc_keyword_map_local[epc_cost_record] = matching_keywords_local     
+                print(f'matching_keywords_local "{matching_keywords_local}"')         
 
     except Exception as e:
         messages.error(request, f"Ошибка при определении ключевых слов: {e}")
