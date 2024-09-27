@@ -19,8 +19,10 @@ import numpy as np
 from django.http import JsonResponse
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
+from asgiref.sync import sync_to_async
 import difflib
 import asyncio
+
 
 
 logging.basicConfig(
@@ -1157,6 +1159,7 @@ def add_UNC_CCR_3(request, project):
 
     unc_keyword_map = {}
     unc_keyword_map_local = {}
+
     try:
         # Шаг 2: Проход по записям EpcCosts и определение ключевых слов
         epc_costs_records = EpcCosts.objects.filter(object__invest_project=project)
@@ -1191,11 +1194,9 @@ def add_UNC_CCR_3(request, project):
             # Добавление в словари только если есть соответствующие данные
             if matching_keywords:
                 unc_keyword_map[epc_cost_record] = matching_keywords
-                print(f'matching_keywords "{matching_keywords}"')
 
             if matching_keywords_local:
-                unc_keyword_map_local[epc_cost_record] = matching_keywords_local     
-                print(f'matching_keywords_local "{matching_keywords_local}"')         
+                unc_keyword_map_local[epc_cost_record] = matching_keywords_local           
 
     except Exception as e:
         messages.error(request, f"Ошибка при определении ключевых слов: {e}")
@@ -1207,279 +1208,378 @@ def add_UNC_CCR_3(request, project):
 
         # Шаг 2: Обрабатываем каждую запись по отдельности
         for expense_record in expenses_records:
-            process_expense_record(expense_record, unc_keyword_map, unc_keyword_map_local)
+            process_expense_record(request, expense_record, unc_keyword_map, unc_keyword_map_local)
 
     except Exception as e:
-        messages.error(request, f"Ошибка при сохранении результатов: {e}")
+        messages.error(request, f"Ошибка при связывании затрат: {e}")
         return redirect('myapp:CCP_UNC_page')
 
-    messages.success(request, "Процесс сопоставления успешно завершен. Объект аналог сохранен")
     return redirect('myapp:CCP_UNC_page')
 
 # Связывание_3.Анализ позиций затрат по имени
-def process_expense_record(expense_record, unc_keyword_map, unc_keyword_map_local):
+def process_expense_record(request, expense_record, unc_keyword_map, unc_keyword_map_local):
+        
+    try:    
+        # Пропускаем записи, у которых заполнено поле object_cost_estimate
+        if expense_record.object_cost_estimate is not None:
+            return
 
-    # Пропускаем записи, у которых заполнено поле object_cost_estimate
-    if expense_record.object_cost_estimate is not None:
-        return
+        local_match_found = False
+        LCR = None
+        local_records = []
+        channel_layer = get_channel_layer()
 
-    local_match_found = False
-    channel_layer = get_channel_layer()
+        # Отдельно анализируем локальные сметы
+        if expense_record.local_cost_estimate is not None:
+            
+            try:
+                # Берем одну локальную смету
+                local_cost_estimate = expense_record.local_cost_estimate
+     
+                # Проверка на None для local_cost_estimate
+                if local_cost_estimate is None:
+                    messages.error(request, f"Ошибка: у записи расхода {expense_record.expense_id} отсутствует local_cost_estimate.")
+                    return
 
-    # Отдельно анализируем локальные сметы
-    if expense_record.local_cost_estimate is not None:
-        # Берем одну локальную смету
-        local_cost_estimate = expense_record.local_cost_estimate
+                print(f"local_cost_estimate {local_cost_estimate}")
+                
+                # Получаем все записи из LocalEstimateData, связанные с этой сметой
+                local_records = LocalEstimateData.objects.filter(local_cost_estimate=local_cost_estimate)
 
-        # Получаем все записи из LocalEstimateData, связанные с этой сметой
-        local_records = LocalEstimateData.objects.filter(local_cost_estimate=local_cost_estimate)
+                # Дополнительная проверка на None для каждого local_record
+                valid_local_records = [record for record in local_records if record.local_cost_estimate is not None]
 
-        # Передаем все записи LocalEstimateData для этой сметы в process_local_estimates
-        local_match_found = process_local_estimates(local_records, unc_keyword_map_local, expense_record)
+                if not valid_local_records:
+                    print(f"Все записи local_records содержат некорректные данные (None в local_cost_estimate)")
+                    messages.error(request, "Все записи local_records содержат некорректные данные.")
+                    return
 
-        LCR = expense_record.local_cost_estimate.local_cost_estimate_code        
+                try:
+                    # Преобразуем local_records в список для безопасного использования в async_to_sync
+                    local_records_list = list(local_records)
+                    # Преобразуем unc_keyword_map_local в словарь/список для синхронного доступа
+                    unc_keyword_map_local_items = list(unc_keyword_map_local.items())
 
-        if local_match_found:
-            # Отправляем уведомление через WebSocket
-            async_to_sync(channel_layer.group_send)(
-                "notifications_group",  # имя группы
-                {
-                    "type": "send_notification",
-                    "message": f"Смета {LCR} сопоставлена",
-                },
-            )
-        else:
-            # Отправляем уведомление через WebSocket
-            async_to_sync(channel_layer.group_send)(
-                "notifications_group",  # имя группы
-                {
-                    "type": "send_notification",
-                    "message": f"Смета {LCR} отправлена на распознование по имени ЛСР",
-                },
-            )
+                    local_match_found = async_to_sync(process_local_estimates)(request, local_records_list, unc_keyword_map_local_items, expense_record)
+                    print(f"local_match_found: {local_match_found}")
+                except Exception as e:
+                    messages.error(request, f"Ошибка при вызове async_to_sync(process_local_estimates): {e}")
+                    print(f"Ошибка при вызове async_to_sync(process_local_estimates): {e}")
 
-    # Переходим к проверке ключевых слов
-    cleaned_expenses_name = clean_string(expense_record.expense_nme)
-    match_found = False  # Флаг для определения, найдено ли совпадение
-    save_record = False
+                print(f"local_match_found {local_match_found}")
 
-    # Проверяем расход по каждому ключевому слову
-    for epc_cost_record, keywords in unc_keyword_map.items():
-        for keyword, keyword_2, key_phrase_obj, cleaned_voltage, name_object, voltage_marker  in keywords:
-            if keyword in cleaned_expenses_name:
+                LCR = expense_record.local_cost_estimate.local_cost_estimate_code   
 
-                voltage_found = (voltage_marker == 1) or (voltage_marker == 2 and cleaned_voltage in cleaned_expenses_name)
+                print(f"LCR {LCR}")
 
-                object_name_found = name_object in cleaned_expenses_name if name_object else False  
-
-                print(f'Найдено ключевое слово "{keyword}" с voltage_found "{voltage_found}" Найдено имя объекта "{object_name_found}"')                            
-
-                # Если найдено хотя бы одно совпадение
-
-                if voltage_found or object_name_found:
-                    save_record = True
+                if local_match_found:
+                    # Отправляем уведомление через WebSocket
+                    async_to_sync(channel_layer.group_send)(
+                        "notifications_group",  # имя группы
+                        {
+                            "type": "send_notification",
+                            "message": f"Смета {LCR} сопоставлена",
+                        },
+                    )
                 else:
-                    save_record = False
+                    # Отправляем уведомление через WebSocket
+                    async_to_sync(channel_layer.group_send)(
+                        "notifications_group",  # имя группы
+                        {
+                            "type": "send_notification",
+                            "message": f"Смета {LCR} отправлена на распознование по имени ЛСР",
+                        },
+                    )
+            except Exception as e:
+                messages.error(request, f"Ошибка при анализе локальных смет {LCR}: {e}")
+                async_to_sync(channel_layer.group_send)(
+                    "notifications_group",  # имя группы
+                    {
+                        "type": "send_notification",
+                        "message": f"Ошибка при обработке локальной сметы {LCR}: {e}",
+                    },
+                )
 
-                if save_record:
+        # Переходим к проверке ключевых слов
+        cleaned_expenses_name = clean_string(expense_record.expense_nme)
+        match_found = False  # Флаг для определения, найдено ли совпадение
+        save_record = False
 
-                    # Проверка на наличие дубликатов
-                    existing_record = ExpensesByEpc.objects.filter(
-                        epc_costs_id=epc_cost_record,
-                        expense_id=expense_record.expense_id,
-                    ).exists()
+        # Проверяем расход по каждому ключевому слову
+        for epc_cost_record, keywords in unc_keyword_map.items():
+            for keyword, keyword_2, key_phrase_obj, cleaned_voltage, name_object, voltage_marker  in keywords:
+                try:    
+                    if keyword in cleaned_expenses_name:
 
-                    if not existing_record:
-                        try:
-                            # Создаем запись с совпадениями
-                            ExpensesByEpc.objects.create(
+                        voltage_found = (voltage_marker == 1) or (voltage_marker == 2 and cleaned_voltage in cleaned_expenses_name)
+                        object_name_found = name_object in cleaned_expenses_name if name_object else False                                                     
+                        messages.success(request, f'Связь по имен локальной сметы: Найдено ключевое слово "{keyword}" с напряжением  "{voltage_found}" Имя объекта {name_object}  - "{object_name_found}"')
+                        
+                        # Если найдено хотя бы одно совпадение
+                        if voltage_found or object_name_found:
+                            save_record = True
+                        else:
+                            save_record = False
+
+                        if save_record:
+                            # Проверка на наличие дубликатов
+                            existing_record = ExpensesByEpc.objects.filter(
                                 epc_costs_id=epc_cost_record,
-                                expense_id=expense_record,
-                                dict_typical_epc_work_id=None,
-                                dict_budgeting_id=None,
-                                expenses_to_epc_map_id=key_phrase_obj,
-                                expenses_by_epc_nme=keyword,
-                            )                                    
-                            match_found = True  # Указываем, что совпадение найдено
-                            async_to_sync(channel_layer.group_send)(
-                                "notifications_group",  # имя группы
-                                {
-                                    "type": "send_notification",
-                                    "message": f"Затрату {cleaned_expenses_name} удалось связать",
-                                },
-                            )
-                        except Exception as e:
-                            print(f"Ошибка при сохранении: {e}")
+                                expense_id=expense_record.expense_id,
+                            ).exists()
 
+                            if not existing_record:
+                                try:
+                                    # Создаем запись с совпадениями
+                                    ExpensesByEpc.objects.create(
+                                        epc_costs_id=epc_cost_record,
+                                        expense_id=expense_record,
+                                        dict_typical_epc_work_id=None,
+                                        dict_budgeting_id=None,
+                                        expenses_to_epc_map_id=key_phrase_obj,
+                                        expenses_by_epc_nme=keyword,
+                                    )                                    
+                                    match_found = True  # Указываем, что совпадение найдено
+                                    async_to_sync(channel_layer.group_send)(
+                                        "notifications_group",  # имя группы
+                                        {
+                                            "type": "send_notification",
+                                            "message": f"Затрату {cleaned_expenses_name} удалось связать",
+                                        },
+                                    )
+                                except Exception as e:      
+                                    messages.error(request, f"Ошибка при сохранении: {e}")
+                except Exception as e:
+                    messages.error(request, f"Ошибка при обработке ключевого слова '{keyword}': {e}")
+                    async_to_sync(channel_layer.group_send)(
+                        "notifications_group",  # имя группы
+                        {
+                            "type": "send_notification",
+                            "message": f"Ошибка при обработке ключевого слова {keyword} для {cleaned_expenses_name}: {e}",
+                        },
+                    )
 
-    if not match_found:
+        if not match_found:
+            async_to_sync(channel_layer.group_send)(
+                "notifications_group",  # имя группы
+                {
+                    "type": "send_notification",
+                    "message": f"Затрату  {cleaned_expenses_name} не удалось связать",
+                },
+            )
+    except Exception as e:
+        messages.error(request, f"Общая ошибка при обработке записи расхода {expense_record.expense_id}: {e}")
         async_to_sync(channel_layer.group_send)(
             "notifications_group",  # имя группы
             {
                 "type": "send_notification",
-                "message": f"Затрату  {cleaned_expenses_name} не удалось связать",
+                "message": f"Ошибка при обработке записи расхода {expense_record.expense_id}: {e}",
             },
         )
 
 # Связывание_3.Анализ локальных смет
-async def process_local_estimates(local_estimates, unc_keyword_map_local, expense_record):
-    match_found = False
-    similarity_threshold = 0.42
-    object_name_found = False
-    save_record = False
-    keyword_found = False
-    voltage_found = False
-    match = None
+async def process_local_estimates(request, local_estimates, unc_keyword_map_local, expense_record):
 
-    # Перебираем локальные сметы
-    for local_record in local_estimates:
-        row_data = local_record.row_data
+    try:
+        match_found = False
+        similarity_threshold = 0.42
+        object_name_found = False
+        save_record = False
+        keyword_found = False
+        voltage_found = False
+        match = None
+        local_record = None
 
-        # Ищем совпадение по каждому EpcCosts и ключевым словам
-        for epc_cost_record, keywords_info in unc_keyword_map_local.items():
-            for keyword, cleaned_key_phrase, key_phrase_obj, cleaned_voltage, name_object, voltage_marker in keywords_info:   
-                
-                # Сначала проверяем, принадлежит ли строка к объекту
-                for key, value in row_data.items():
-                    
-                    if object_name_found:
-                        break  # Если имя объекта уже найдено, выходим из цикла поиска объекта                    
-                    value_str = clean_and_normalize_string(str(value)).lower()
+        print("Начало обработки локальных смет local_estimates: {local_estimates}")
 
-                    # Проверяем наличие имени объекта
-                    similarity = difflib.SequenceMatcher(None, name_object, value_str).ratio()
-                    if similarity >= similarity_threshold:
-                        object_name_found = True
-                        break  # Прекращаем дальнейший поиск объекта
+        # Извлекаем все существующие записи ExpensesByEpc для текущего expense_record и кэшируем их в памяти
+        existing_expenses = await sync_to_async(list)(ExpensesByEpc.objects.filter(expense_id=expense_record).values_list('epc_costs_id', flat=True))
+        existing_epc_ids = set(existing_expenses)
+           
+        # Перебираем локальные сметы
+        for local_record in local_estimates:
+            try:
+                # row_data = await sync_to_async(lambda: local_record.row_data)()
 
-                for key, value in row_data.items():
-                    value_str = clean_and_normalize_string(str(value)).lower()                                                       
+                row_data = local_record.row_data
 
-                    # Проверяем наличие ключевого слова
-                    keyword_position = value_str.find(keyword.lower())
+                # Ищем совпадение по каждому EpcCosts и ключевым словам
+                for epc_cost_record, keywords_info in unc_keyword_map_local:
 
-                    if keyword_position != -1:
-                        keyword_found = True                    
+                    for keyword, cleaned_key_phrase, key_phrase_obj, cleaned_voltage, name_object, voltage_marker in keywords_info:   
 
-                        # Проверяем voltage_marker
-                        if voltage_marker == 1:
-                            # Если voltage_marker == 1, связываем только по ключевому слову, без проверки напряжения
-                            save_record = True
-
-                        if voltage_marker == 2:
-                            # Если voltage_marker != 1, выполняем полную проверку на напряжение 
-                            voltage_match = re.search(r'\d{1,3}(,\d{1})?кв', value_str, re.IGNORECASE)
-                            range_voltage_match = re.search(r'(\d{1,3})(,\d{1})?\s*-\s*(\d{1,3})(,\d{1})?\s*кв', value_str, re.IGNORECASE)
+                        # Сначала проверяем, принадлежит ли строка к объекту
+                        for key, value in row_data.items():
                             
-                            # Проверка на наличие фразы "до" перед напряжением
-                            if "до" in value_str:
-                                # Проверяем, что перед напряжением идет фраза "до" (например, "Кабель до 35 кВ")
-                                range_match = re.search(r'до\s*(\d{1,3})(,\d{1})?\s*кв', value_str, re.IGNORECASE)
-                                if range_match:
-                                    voltage_found = True
+                            if object_name_found:
+                                break  # Если имя объекта уже найдено, выходим из цикла поиска объекта      
 
-                                    # Если найдено напряжение, проверяем, попадает ли оно в диапазон
-                                    if voltage_match:
-                                        found_voltage = float(voltage_match.group(0).replace('кв', '').replace(',', '.').strip())
+                            value_str = clean_and_normalize_string(str(value)).lower()
+
+                            # Проверяем наличие имени объекта
+                            similarity = difflib.SequenceMatcher(None, name_object, value_str).ratio()
+
+                            if similarity >= similarity_threshold:
+                                object_name_found = True
+                                break  # Прекращаем дальнейший поиск объекта
+
+                        for key, value in row_data.items():
+
+                            value_str = clean_and_normalize_string(str(value)).lower()                                            
+
+                            # Проверяем наличие ключевого слова
+                            keyword_position = value_str.find(keyword.lower())
+
+                            if keyword_position != -1:
+                                keyword_found = True              
+
+                                # Проверяем voltage_marker
+                                if voltage_marker == 1:
+                                    save_record = True
+
+                                if voltage_marker == 2:
+                                    voltage_match = re.search(r'\d{1,3}(,\d{1})?кв', value_str, re.IGNORECASE)
+                                    range_voltage_match = re.search(r'(\d{1,3})(,\d{1})?\s*-\s*(\d{1,3})(,\d{1})?\s*кв', value_str, re.IGNORECASE)
+                                    
+                                    # Проверка на наличие фразы "до" перед напряжением
+                                    if "до" in value_str:
+                                        # Проверяем, что перед напряжением идет фраза "до" (например, "Кабель до 35 кВ")
+
+                                        range_match = re.search(r'до\s*(\d{1,3})(,\d{1})?\s*кв', value_str, re.IGNORECASE)
+                                        if range_match:
+                                            voltage_found = True
+
+                                            # Если найдено напряжение, проверяем, попадает ли оно в диапазон
+                                            if voltage_match:
+                                                found_voltage = float(voltage_match.group(0).replace('кв', '').replace(',', '.').strip())
+                                                cleaned_voltage_normalized = float(re.sub(r'[^\d,]', '', cleaned_voltage).replace(',', '.'))
+                                                
+                                                if 0 <= cleaned_voltage_normalized <= found_voltage:
+                                                    save_record = True
+                                                else:
+                                                    save_record = False
+                                            else: 
+                                                save_record = False # Явно указываем, что не сохраняем, если не найдено соответствие напряжения                          
+                                    
+                                    if range_voltage_match:
+                                        # Если найден диапазон напряжений, извлекаем минимальное и максимальное значения
+                                        min_voltage = float(range_voltage_match.group(1).replace(',', '.'))
+                                        max_voltage = float(range_voltage_match.group(3).replace(',', '.'))
+
                                         cleaned_voltage_normalized = float(re.sub(r'[^\d,]', '', cleaned_voltage).replace(',', '.'))
-                                        
-                                        if 0 <= cleaned_voltage_normalized <= found_voltage:
+
+                                        # Проверяем, входит ли наше напряжение в диапазон
+                                        if min_voltage <= cleaned_voltage_normalized <= max_voltage:
+                                            save_record = True
+                                            save_record = True
+                                        else:
+                                            save_record = False                            
+                                    
+                                    if voltage_match:
+                                        match = voltage_match.group(0).strip().lower()  # Убираем пробелы и приводим к нижнему регистру
+                                        cleaned_voltage_normalized = cleaned_voltage.strip().lower()  # Убираем пробелы и приводим к нижнему регистру
+                                        voltage_found = True
+
+                                        # Сравниваем напряжение с cleaned_voltage
+                                        if match == cleaned_voltage_normalized:
                                             save_record = True
                                         else:
                                             save_record = False
                                     else:
-                                        save_record = False # Явно указываем, что не сохраняем, если не найдено соответствие напряжения                          
-                            
-                            if range_voltage_match:
-                                # Если найден диапазон напряжений, извлекаем минимальное и максимальное значения
-                                min_voltage = float(range_voltage_match.group(1).replace(',', '.'))
-                                max_voltage = float(range_voltage_match.group(3).replace(',', '.'))
+                                        voltage_found = False
+                                        save_record = False 
 
-                                cleaned_voltage_normalized = float(re.sub(r'[^\d,]', '', cleaned_voltage).replace(',', '.'))
+                        # Если ключевое слово найдено и (напряжение или имя объекта) также найдены, создаем запись                
+                        if keyword_found and (voltage_found or object_name_found or voltage_marker == 1):
 
-                                # Проверяем, входит ли наше напряжение в диапазон
-                                if min_voltage <= cleaned_voltage_normalized <= max_voltage:
-                                    save_record = True
-                                else:
-                                    save_record = False                            
-                            
-                            if voltage_match:
-                                match = voltage_match.group(0).strip().lower()  # Убираем пробелы и приводим к нижнему регистру
-                                cleaned_voltage_normalized = cleaned_voltage.strip().lower()  # Убираем пробелы и приводим к нижнему регистру
-                                voltage_found = True
-
-                                # Сравниваем напряжение с cleaned_voltage
-                                if match == cleaned_voltage_normalized:
-                                    save_record = True
-                                else:
-                                    save_record = False
-                            else:
-                                voltage_found = False
-                                save_record = False 
-
-                # Если ключевое слово найдено и (напряжение или имя объекта) также найдены, создаем запись                
-                if keyword_found and (voltage_found or object_name_found or voltage_marker == 1):
-
-                    if save_record:                        
-                        # Асинхронная проверка на наличие дубликатов
-                        existing_record = await asyncio.to_thread(
-                            ExpensesByEpc.objects.filter(
-                                epc_costs_id=epc_cost_record,
-                                expense_id=expense_record
-                            ).exists
-                        )
-                        
-                        if not existing_record:
-                            try:
-                                # Асинхронное создание записи
-                                await asyncio.to_thread(
-                                    ExpensesByEpc.objects.create,
-                                    epc_costs_id=epc_cost_record,
-                                    expense_id=expense_record,
-                                    dict_typical_epc_work_id=None,
-                                    dict_budgeting_id=None,
-                                    expenses_to_epc_map_id=key_phrase_obj,
-                                    expenses_by_epc_nme=keyword
-                                )
+                            if save_record and epc_cost_record not in existing_epc_ids:                
+                                await create_expense_by_epc(epc_cost_record, expense_record, key_phrase_obj, keyword)
                                 match_found = True
-                                
-                            except Exception as e:
-                                print(f"Ошибка при сохранении записи для сметы {local_record.local_cost_estimate.local_cost_estimate_code}: {e}")           
+                                existing_epc_ids.add(epc_cost_record)
+
+            except Exception as e:
+                    print(f"Ошибка при обработке ключевых слов локальных смет для записи: {e}")
+                    await sync_to_async(messages.error)(request, f"Ошибка при обработке ключевых слов локальных смет для записи: {e}")
+
+    except Exception as e:
+        print(f"Ошибка при обработке строки: {e}")
+        await sync_to_async(messages.error)(request, f"Ошибка при обработке строки: {e}")
+    
+    print(f"Результат обработки локальных смет: {match_found}")
     return match_found
+
+# Связывание_3. Асинхронное создание записи
+async def create_expense_by_epc(epc_cost_record, expense_record, key_phrase_obj, keyword):
+
+    # Проверяем, существует ли запись с заданным epc_costs_id и expense_id
+    existing_record = await sync_to_async(ExpensesByEpc.objects.filter(
+        epc_costs_id=epc_cost_record,
+        expense_id=expense_record
+    ).exists)()
+
+    if not existing_record:
+        # Создаём новую запись, если её не существует
+        await sync_to_async(ExpensesByEpc.objects.create)(
+            epc_costs_id=epc_cost_record,
+            expense_id=expense_record,
+            dict_typical_epc_work_id=None,
+            dict_budgeting_id=None,
+            expenses_to_epc_map_id=key_phrase_obj,
+            expenses_by_epc_nme=keyword
+        )
 
 # Пересвязывание
 def re_add_UNC_CCR_2(request, project_id):
-    # Получаем объект проекта по project_id
-    invest_project = get_object_or_404(InvestProject, pk=project_id)
 
-    # Получаем все сводные сметы расчета, связанные с объектами этого проекта
+    success_flag = True
+
     try:
-        summary_estimates = SummaryEstimateCalculation.objects.get(invest_project=invest_project)
-    except SummaryEstimateCalculation.DoesNotExist:
-        summary_estimates = None
+        # Получаем объект проекта по project_id
+        invest_project = get_object_or_404(InvestProject, pk=project_id)
 
-    if summary_estimates:
-        # Получаем все расходы, связанные с данной сводной сметой
-        filtered_expenses = Expenses.objects.filter(summary_estimate_calculation=summary_estimates)
+        # Получаем все сводные сметы расчета, связанные с объектами этого проекта
+        try:
+            summary_estimates = SummaryEstimateCalculation.objects.get(invest_project=invest_project)
+        except SummaryEstimateCalculation.DoesNotExist:
+            summary_estimates = None
 
-        # Получаем идентификаторы всех записей расходов
-        expense_ids = filtered_expenses.values_list('expense_id', flat=True)
-        
-        # Фильтруем связанные записи в ExpensesByEpc по идентификаторам расходов
-        filtered_expenses_by_epc = ExpensesByEpc.objects.filter(expense_id__in=expense_ids)
+        if summary_estimates:
+            # Получаем все расходы, связанные с данной сводной сметой
+            filtered_expenses = Expenses.objects.filter(summary_estimate_calculation=summary_estimates)
 
-        # Удаляем записи из ExpensesByEpc, связанные с удаленными расходами
-        if filtered_expenses_by_epc.exists():
-            num_deleted_by_epc, _ = filtered_expenses_by_epc.delete()
-            # Вызов функции связывания после миграции данных
-            add_UNC_CCR_3(request, invest_project)
-            messages.success(request, f"Удалено {num_deleted_by_epc} записей из ExpensesByEpc.")
-        else:
-            # Вызов функции связывания после миграции данных
-            add_UNC_CCR_3(request, invest_project)
-            messages.error(request, f"Не найдены записи о связаных позициях из ExpensesByEpc.") 
+            # Получаем идентификаторы всех записей расходов
+            expense_ids = filtered_expenses.values_list('expense_id', flat=True)
+            
+            # Фильтруем связанные записи в ExpensesByEpc по идентификаторам расходов
+            filtered_expenses_by_epc = ExpensesByEpc.objects.filter(expense_id__in=expense_ids)
 
-    messages.success(request, "Процесс пересопоставления успешно завершен. Объект аналог изменен")
+            # Удаляем записи из ExpensesByEpc, связанные с удаленными расходами
+            if filtered_expenses_by_epc.exists():
+                num_deleted_by_epc, _ = filtered_expenses_by_epc.delete()
+                try:
+                    # Вызов функции связывания после миграции данных
+                    add_UNC_CCR_3(request, invest_project)
+                    messages.success(request, f"Удалено {num_deleted_by_epc} записей из ExpensesByEpc.")
+                except Exception as e:
+                    messages.error(request, f"Ошибка при вызове add_UNC_CCR_3: {e}")
+                    success_flag = False  # Если произошла ошибка, сбрасываем флаг
+            else:
+                try:
+                    # Вызов функции связывания после миграции данных
+                    add_UNC_CCR_3(request, invest_project)
+                    messages.warning(request, f"Не найдены записи о связаных позициях из ExpensesByEpc.")
+                except Exception as e:
+                    messages.error(request, f"Ошибка при вызове add_UNC_CCR_3: {e}")
+                    success_flag = False  # Если произошла ошибка, сбрасываем флаг
+
+    except Exception as e:
+        messages.error(request, f"Ошибка при пересопоставлении: {e}")
+        success_flag = False  
+
+    # Сообщение об успешном завершении выводим только если не было ошибок
+    if success_flag:
+        messages.success(request, "Процесс пересопоставления успешно завершен. Объект аналог изменен")
+
     return redirect('myapp:object_analog_2')
 
 
