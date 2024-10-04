@@ -19,7 +19,8 @@ class ExpensesToEpcMap(models.Model):
     expenses_to_epc_map_name = models.TextField(null=False, blank=False)
     expenses_to_epc_map_epc = models.TextField(null=False, blank=False)
     expenses_to_epc_number = models.IntegerField(null=False, blank=False)  
-    expenses_to_epc_voltage_marker = expenses_to_epc_voltage_marker = models.IntegerField(null=True, blank=True)
+    expenses_to_epc_voltage_marker = models.IntegerField(null=True, blank=True)
+    expenses_to_epc_type = models.IntegerField(null=False, blank=False)  
 
     class Meta:
         db_table = 'expenses_to_epc_map'
@@ -292,6 +293,24 @@ class LocalEstimateData(models.Model):
 
     def __str__(self):
         return f"Parsed Data ID: {self.parsed_local_estimate_id} - {self.local_cost_estimate.local_cost_estimate_code} (Строка: {self.row_number})"
+
+class LocalEstimateDataSort(models.Model):
+    sort_local_estimate_id = models.AutoField(primary_key=True)  # Основной ключ
+    local_cost_estimate = models.ForeignKey('LocalCostEstimate', on_delete=models.CASCADE, related_name='estimate_sort_data')  # Связь с локальной сметой
+    local_estimate_data_code = models.TextField(null=True)
+    local_estimate_data_part = models.TextField(null=True)
+    local_estimate_data_name = models.TextField(null=True)
+    local_estimate_data_type = models.TextField(null=True)
+    local_estimate_data_type_code = models.TextField(null=True)
+
+    class Meta:
+        db_table = 'local_estimate_data_sort'
+        verbose_name = 'Данные сортировки локальной сметы'
+        verbose_name_plural = 'Данные сортировки локальных смет'
+
+    def __str__(self):
+        return f"Parsed Data ID: {self.sort_local_estimate_id} - {self.local_cost_estimate.local_cost_estimate_code})"
+
 
 class Expenses(models.Model):
     expense_id = models.AutoField(primary_key=True)  # SERIAL, основной ключ

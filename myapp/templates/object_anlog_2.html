@@ -38,10 +38,12 @@
                   <th>Позиции</th>
                   <th>Связано</th>
                   <th>Проверено (ССР)</th>
-                  <th>Проверено (ССР+УНЦ)</th>                  
-                  <th>Действия</th>
+                  <th>Проверено (ССР+УНЦ)</th>
+                  <th>Сортировка ЛСР</th>
+                  <th>Проверен</th>                
+                  <th>Посмотреть</th>
+                  <th>Сортирвать ЛСР</th>
                   <th>Связать повторно</th>
-                  <th>Проверен</th>
                   <th>Удалить</th>
               </tr>
           </thead>
@@ -55,21 +57,25 @@
                       <td>{{ project_data.num_records_TX }}</td>
                       <td>{{ project_data.num_checked }}</td>
                       <td>{{ project_data.num_checked_byepc }}</td>
+                      <td>{{ project_data.num_checked_sort }}</td>
+                      <td>
+                        {% if project_data.num_checked_byepc == project_data.num_records_TX %}
+                            <!-- Зелёный значок -->
+                            <p style="color: #26a69a; font-size: 14px; font-weight: bold;">ПРОВЕРЕН</p>
+                        {% else %}
+                            <!-- Красный значок -->
+                            <p style="color: rgb(228, 53, 56); font-size: 14px; font-weight: bold;">НЕ ПРОВЕРЕН</p>
+                        {% endif %}
+                      </td>
                       <td>
                           <a href="{% url 'myapp:object_analog_content_2' project_id=project_data.project.invest_project_id %}" class="waves-effect waves-light btn">Посмотреть</a>
                       </td>
                       <td>
-                          <a href="{% url 'myapp:re_add_UNC_CCR_2' project_id=project_data.project.invest_project_id %}" class="waves-effect waves-light btn">Связать</a>
+                        <a href="{% url 'myapp:local_estimates_data_sort' project_id=project_data.project.invest_project_id %}" class="waves-effect waves-light btn">Сортировка</a>
                       </td>
                       <td>
-                          {% if project_data.num_checked_byepc == project_data.num_records_TX %}
-                              <!-- Зелёный значок -->
-                              <p style="color: #26a69a; font-size: 14px; font-weight: bold;">ПРОВЕРЕН</p>
-                          {% else %}
-                              <!-- Красный значок -->
-                              <p style="color: rgb(228, 53, 56); font-size: 14px; font-weight: bold;">НЕ ПРОВЕРЕН</p>
-                          {% endif %}
-                      </td>
+                          <a href="{% url 'myapp:re_add_UNC_CCR_2' project_id=project_data.project.invest_project_id %}" class="waves-effect waves-light btn">Связать</a>
+                      </td>                      
                       <td>
                           <a href="{% url 'myapp:delete_object_analog_2' project_id=project_data.project.invest_project_id %}" class="waves-effect waves-light btn delete">Удалить</a>
                       </td>

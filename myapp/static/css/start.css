@@ -39,19 +39,14 @@ body {
     display: flex;
     flex-direction: row;
     justify-content: space-between;
-}
-
-
-
-/* Стиль для формы */
-form {
-    display: flex;
-    flex-direction: column;
+    gap: 30px;
 }
 
 /* Стиль для полей ввода */
 .input-field {
     margin: 1px;
+    flex-grow: 1; 
+    min-width: 250px; 
 }
 
 label {
