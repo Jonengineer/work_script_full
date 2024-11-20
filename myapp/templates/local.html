@@ -1,16 +1,16 @@
 {% load static %}
 <!DOCTYPE html>
 <html lang="ru">
-  {% block styles %}
-  <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">        
-      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
-      <link rel="stylesheet" type="text/css" href="{% static 'css/start.css' %}">
-      <link rel="icon" href="{% static 'favicon.ico' %}" type="image/x-icon">       
-  </head>
-  {% endblock %}   
-  <body>
+{% block styles %}
+    <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">        
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
+    <link rel="stylesheet" type="text/css" href="{% static 'css/start.css' %}">
+    <link rel="icon" href="{% static 'favicon.ico' %}" type="image/x-icon">       
+    </head>
+{% endblock %}   
+    <body>
     {% block header %}
     <div class="row">
         {% if messages %}
@@ -23,7 +23,7 @@
             </ul>
         {% endif %} 
         <div class="content-btn">
-          <a href="{% url 'myapp:object_analog_content_2' project_id=project_id %}" class="waves-effect waves-light btn">Назад</a>
+            <a href="{% url 'myapp:object_analog_content_2' project_id=project_id %}" class="waves-effect waves-light btn">Назад</a>
         </div>
         <form id="filter-form">
             {% csrf_token %}
@@ -65,10 +65,10 @@
             <tbody>
                 {% for data in local_estimates_data %}
                     <tr>
-                        <td>{{ data.local_cost_estimate.local_cost_estimate_code }}</td>
-                        <td>{{ data.row_number }}</td>
+                        <td>{{ data.local_cost_estimate_id.local_cost_estimate_code }}</td>
+                        <td>{{ data.local_estimate_data_rn }}</td>
                         <td>
-                            {% for key, value in data.row_data.items %}
+                            {% for key, value in data.local_estimate_row_data.items %}
                                 <strong>{{ key }}:</strong> {{ value }}<br>
                             {% endfor %}
                         </td>

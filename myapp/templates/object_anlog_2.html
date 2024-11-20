@@ -51,15 +51,15 @@
               {% for project_data in projects %}
                   <tr>
                       <td>{{ forloop.counter }}</td>
-                      <td>{{ project_data.project.project_code }}</td>
-                      <td>{{ project_data.project.project_name }}</td>
+                      <td>{{ project_data.project.invest_project_code }}</td>
+                      <td>{{ project_data.project.invest_project_fullname }}</td>
                       <td>{{ project_data.num_records }}</td>
                       <td>{{ project_data.num_records_TX }}</td>
                       <td>{{ project_data.num_checked }}</td>
                       <td>{{ project_data.num_checked_byepc }}</td>
                       <td>{{ project_data.num_checked_sort }}</td>
                       <td>
-                        {% if project_data.num_checked_byepc == project_data.num_records_TX %}
+                        {% if project_data.num_checked_byepc == project_data.num_records_TX and project_data.num_records_TX != 0 %}
                             <!-- Зелёный значок -->
                             <p style="color: #26a69a; font-size: 14px; font-weight: bold;">ПРОВЕРЕН</p>
                         {% else %}

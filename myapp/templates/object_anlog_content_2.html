@@ -22,7 +22,7 @@
           <a href="{% url 'myapp:object_analog_2' %}" class="waves-effect waves-light btn">Назад</a>
         </div>  
         <div class="content-btn">
-            <p style="font-size: 16px; font-weight: bold;">Идентификатор проекта:  {{ invest_project.project_code }} |||   {{ invest_project.project_name }} |||</p>
+            <p style="font-size: 16px; font-weight: bold;">Идентификатор проекта:  {{ invest_project.invest_project_code }} |||   {{ invest_project.invest_project_fullname }} |||</p>
         </div>
         <div class="content-btn">
             <p>Локальные сметы:</p>
@@ -65,27 +65,27 @@
                     <tbody>
                         {% for record in all_object_analog %}
                             <tr>
-                                <td>{{ record.expense_id.chapter_id.dict_sec_chapter_id }}</td>
-                                <td>{{ record.expense_id.local_cost_estimate.object_cost_estimate.object_cost_estimate_code }}</td>
-                                <td>{{ record.expense_id.local_cost_estimate.local_cost_estimate_code }}</td>
+                                <td>{{ record.expense_id.dict_sec_chapter_id.dict_sec_chapter_id }}</td>
+                                <td>{{ record.expense_id.local_cost_estimate_id.object_cost_estimate_id.object_cost_estimate_code }}</td>
+                                <td>{{ record.expense_id.local_cost_estimate_id.local_cost_estimate_code }}</td>
                                 <td>{{ record.expense_id.expense_nme }}</td>
-                                <td>{{ record.expense_id.total_cost }}</td>
+                                <td>{{ record.expense_id.expense_total }}</td>
                                 <td>{{ record.epc_costs_id.name_unc }}</td>
                                 <td>{{ record.epc_costs_id.name_object }}</td>
                                 <td>{{ record.epc_costs_id.voltage }}</td>
                                 <td>{{ record.epc_costs_id.TX }}</td>
                                 <td>{{ record.epc_costs_id.count }}</td>
                                 <td>{{ record.epc_costs_id.unit }}</td>
-                                <td>{{ record.epc_costs_id.dict_cost_epc_id }}</td>
+                                <td>{{ record.epc_costs_id.code }}</td>
                                 <td>{{ record.expenses_to_epc_map_id.expenses_to_epc_map_id }}</td>
                                 <td style="width: 50px;">
                                     <label style="margin: 0; padding: 0; display: inline-flex; align-items: center;">
-                                        <input type="checkbox" class="filled-in" name="check_{{ record.expenses_by_epc_id }}" {% if record.is_check %}checked{% endif %}/>
+                                        <input type="checkbox" class="filled-in" name="check_{{ record.expenses_by_epc_id }}" {% if record.expenses_by_epc_checked %}checked{% endif %}/>
                                         <span style="margin: 0; padding: 0;"></span>
                                     </label>
                                 </td>
                                 <td>
-                                    <textarea name="description_{{ record.expenses_by_epc_id }}" style="width: 300px;">{{ record.description }}</textarea>
+                                    <textarea name="description_{{ record.expenses_by_epc_id }}" style="width: 300px;">{{ record.expenses_by_epc_descr }}</textarea>
                                 </td>
                             </tr>
                         {% endfor %}
@@ -124,7 +124,7 @@
                     <tbody>
                         {% for record in filtered_expenses %}
                             <tr>
-                                <td>{{ record.chapter_id.dict_sec_chapter_id }}</td>
+                                <td>{{ record.dict_sec_chapter_id.dict_sec_chapter_id }}</td>
                                 <td>
                                     {% if record.object_cost_estimate %}
                                         {{ record.object_cost_estimate.object_cost_estimate_code }}
@@ -134,7 +134,7 @@
                                         Нет
                                     {% endif %}
                                 </td>
-                                <td>{{ record.local_cost_estimate.local_cost_estimate_code }}</td>
+                                <td>{{ record.local_cost_estimate_id.local_cost_estimate_code }}</td>
                                 <td>{{ record.expense_nme }}</td>
                                 <td>{{ record.total_cost }}</td>
                                 <td>Нет данных</td>
@@ -147,12 +147,12 @@
                                 <td>Нет данных</td>
                                 <td style="width: 50px;">
                                     <label style="margin: 0; padding: 0; display: inline-flex; align-items: center;">
-                                        <input type="checkbox" class="filled-in" name="check_{{ record.expense_id }}" {% if record.is_check %}checked{% endif %} />
+                                        <input type="checkbox" class="filled-in" name="check_{{ record.expense_id }}" {% if record.expense_checked %}checked{% endif %} />
                                         <span style="margin: 0; padding: 0;"></span>
                                     </label>
                                 </td>
                                 <td>
-                                    <textarea name="description_{{ record.expense_id }}" style="width: 300px;">{{ record.description }}</textarea>
+                                    <textarea name="description_{{ record.expense_id }}" style="width: 300px;">{{ record.expense_description }}</textarea>
                                 </td>
                             </tr>
                         {% endfor %}
@@ -164,7 +164,8 @@
                     </div>        
                 </div>
             </form>
-            <form method="post">
+            <form method="post" action="{% url 'myapp:save_all_object_analogs_UNC' project_id %}">
+                {% csrf_token %}
                 <div class="row-empty">      
                 </div> 
                 <table class="highlight">
@@ -193,22 +194,22 @@
                                 <td>Нет данных</td>
                                 <td>Нет данных</td>
                                 <td>Нет данных</td>
-                                <td>{{ record.name_unc }}</td>
+                                <td>{{ record.epc_costs_id_name }}</td>
                                 <td>{{ record.name_object }}</td>
                                 <td>{{ record.voltage }}</td>
                                 <td>{{ record.TX }}</td>
                                 <td>{{ record.count }}</td>
                                 <td>{{ record.unit }}</td>
-                                <td>{{ record.dict_cost_epc_id }}</td>
+                                <td>{{ record.code }}</td>
                                 <td>{{ record.dict_cost_epc_table_id }}</td>
                                 <td style="width: 50px;">
                                     <label style="margin: 0; padding: 0; display: inline-flex; align-items: center;">
-                                        <input type="checkbox" class="filled-in" name="is_check_{{ record.id }}" {% if record.is_check %}checked{% endif %} />
+                                        <input type="checkbox" class="filled-in" name="check_epc_{{ record.epc_costs_id }}" {% if record.epc_costs_checked %}checked{% endif %} />
                                         <span style="margin: 0; padding: 0;"></span>
                                     </label>
                                 </td>
                                 <td>
-                                    <textarea name="description_{{ record.id }}" style="width: 300px;">{{ record.description }}</textarea>
+                                    <textarea name="description_epc_{{ record.epc_costs_id }}" style="width: 300px;">{{ record.epc_costs_description }}</textarea>
                                 </td>
                             </tr>
                         {% endfor %}

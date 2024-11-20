@@ -86,7 +86,7 @@
                         {% csrf_token %}
                         <td>{{ record.expenses_to_epc_map_id }}</td>
                         <td>
-                          <span id="name-text-{{ record.expenses_to_epc_map_id }}">{{ record.expenses_to_epc_map_name }}</span>
+                          <span id="name-text-{{ record.expenses_to_epc_map_id }}">{{ record.expenses_to_epc_map_nme }}</span>
                           <input type="text" name="expense_name" id="name-input-{{ record.expenses_to_epc_map_id }}" value="{{ record.expenses_to_epc_map_name }}" style="display: none;">
                         </td>
                         <td>
