@@ -313,6 +313,7 @@ class LocalEstimateDataSort(models.Model):
     local_estimate_data_type_code = models.TextField(null=True)
     local_estimate_data_unit = models.TextField(null=True)
     local_estimate_data_count = models.TextField(null=True)
+    local_estimate_data_total = models.TextField(null=True)
 
     class Meta:
         db_table = 'local_estimate_data_sort'

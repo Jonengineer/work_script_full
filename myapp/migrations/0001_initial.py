@@ -359,6 +359,9 @@ class Migration(migrations.Migration):
                 ('local_estimate_data_name', models.TextField(null=True)),
                 ('local_estimate_data_type', models.TextField(null=True)),
                 ('local_estimate_data_type_code', models.TextField(null=True)),
+                ('local_estimate_data_unit', models.TextField(null=True)),
+                ('local_estimate_data_count', models.TextField(null=True)),
+                ('local_estimate_data_total', models.TextField(null=True)),
             ],
             options={
                 'verbose_name': 'Данные сортировки локальной сметы',

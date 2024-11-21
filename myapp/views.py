@@ -1695,21 +1695,15 @@ def re_add_UNC_CCR_2(request, project_id):
 
 
 # Поиск нужных столбцов для сортировки
-def find_required_columns(row_data):
+def find_required_columns(row_data, found_columns):
     # Словари для определения столбцов
     column_name_variations = {
         "Обоснование": ["Обоснование", "Обоснование сметы", "Основание", "Основание расчета", "Обоснование стоимости"],
         "Наименование работ и затрат": ["Наименование работ и затрат", "Наименование работ", "Наименование затрат", "Наименование"],
         "Единица измерения": ["Единица измерения", "Ед. изм.", "Единица", "Ед. изм.", "ед. измер.", "ед. изм.", "Ед. измерен."],
-        "Количество": ["Количество", "Кол-во", "Количество ед.", "Количество изделий"]
+        "Количество": ["Количество", "Кол-во", "Количество ед.", "Количество изделий"],
+        "Всего": ["всего", "Стоимость, руб."]
         }
-
-    found_columns = {
-        "Обоснование": None,
-        "Наименование работ и затрат": None,
-        "Единица измерения": None,
-        "Количество": None,
-    }
 
     for column_name, column_value in row_data.items():
         if column_name and column_value:
@@ -1720,9 +1714,24 @@ def find_required_columns(row_data):
                     continue
                 # Ищем точное совпадение
                 if any(clean_and_normalize_string(variation) == clean_and_normalize_string(column_value) for variation in variations):
-                    found_columns[standard_name] = column_name
+                    found_columns[standard_name] = column_name 
 
     return found_columns
+
+# Поиск нужных итоговых строк для расценок
+def find_total_value(local_records_data, total_column):
+
+    for data in local_records_data:
+        # После текущей строки начинаем искать "Всего по позиции"
+        row_data = data.local_estimate_row_data
+        if row_data:
+            # Проходим по каждой ячейке строки
+            for key, value in row_data.items():
+                if value and isinstance(value, str):
+                    normalized_value = clean_and_normalize_string(value)
+                    if normalized_value == "всегопопозиции":
+                        return row_data.get(total_column)
+    return None
 
 
 # Сортироака локальных смет
@@ -1737,7 +1746,7 @@ def local_estimates_data_sort(request, project_id):
                                         "62.4.01.01-0005", "20.2.03.09-0001", "12.1.02.15", "фссц", "спецификация №", "мониторинг",
                                         "счет ООО", "счет ао", "счет№", "счет-спецификация", "счет на оплату", "счет-фактура"]
     works_keywords = ["фссцпг", "фер", "ферм", "тер", "терм", "ферп", "терп"]
-    coefficient_keywords = ["приказ №", "приказ от", "Приказ 421"]
+    coefficient_keywords = ["приказ №", "приказ от", "Приказ"]
     building_keywords = ["999-9900"]
     unregulated_keywords = ["999-9950"]
     NR_SP_keywords = ["пр/"]
@@ -1764,18 +1773,29 @@ def local_estimates_data_sort(request, project_id):
             local_records_data = LocalEstimateData.objects.filter(local_cost_estimate_id=local_record)
             
             try:
-                found_columns = None
-                for data in local_records_data:
+                found_columns = {
+                    "Обоснование": None,
+                    "Наименование работ и затрат": None,
+                    "Единица измерения": None,
+                    "Количество": None,
+                    "Всего": None,
+                }
+
+                for idx, data in enumerate(local_records_data):
+
+                    if idx >= 50:  # Ограничиваем поиск первыми 50 строками
+                        break
 
                     row_data = data.local_estimate_row_data
 
                     if row_data:
-                        found_columns = find_required_columns(row_data)
-                        if all(found_columns.values()):
+                        found_columns = find_required_columns(row_data, found_columns)
+                        print(f"Найдено: {found_columns}")
+                        if all(found_columns.values()):                            
                             break
 
                 if not found_columns or not all(found_columns.values()):
-                    messages.error(request, f"Не найдены все столбцы в локальной смете ID: {local_record.local_cost_estimate_code}")
+                    messages.error(request, f"Не найдены все столбцы в локальной смете ID: {local_record.local_cost_estimate_code} {found_columns}")
                     continue
                 else:
                     messages.success(request, f"Найдены все столбцы в локальной смете ID: {local_record.local_cost_estimate_code}")
@@ -1794,7 +1814,8 @@ def local_estimates_data_sort(request, project_id):
                         naimenovanie_column = found_columns["Наименование работ и затрат"]
                         unit_column = found_columns["Единица измерения"]
                         quantity_column = found_columns["Количество"]
-
+                        total_column = found_columns["Всего"]
+                        
                         # Проверяем наличие ключевой фразы "Раздел" в данных
                         section_code_name = None
                         for key, value in row_data.items():
@@ -1834,6 +1855,13 @@ def local_estimates_data_sort(request, project_id):
                                 estimate_type_code = 5
 
                             data_name = row_data.get(naimenovanie_column)
+                            total_value = row_data.get(total_column)
+
+                            # Если "Всего" отсутствует, ищем его в следующих строках
+                            if not total_value or total_value == "":
+                                total_value = find_total_value(local_records_data, total_column)
+
+
                             if data_name and isinstance(data_name, str) and all(word not in data_name for word in ("Итого", "в т.ч.", "Всего", "ВСЕГО", "Должность", "в том числе")):
                                 sorted_data = LocalEstimateDataSort(
                                     local_cost_estimate=local_record,
@@ -1844,6 +1872,7 @@ def local_estimates_data_sort(request, project_id):
                                     local_estimate_data_type_code=estimate_type_code,
                                     local_estimate_data_unit=row_data.get(unit_column),
                                     local_estimate_data_count=row_data.get(quantity_column),
+                                    local_estimate_data_total=total_value,                                    
                                 )
                                 sorted_data.save()
 
