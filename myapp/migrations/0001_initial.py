@@ -562,7 +562,7 @@ class Migration(migrations.Migration):
                 ('dict_budgeting_id', models.IntegerField(null=True)),
                 ('expense_id', models.ForeignKey('Expenses', on_delete=models.CASCADE)),  # ForeignKey на Expenses
                 ('expenses_to_epc_map_id', models.ForeignKey('ExpensesToEpcMap', on_delete=models.CASCADE)),  # ForeignKey на ExpensesToEpcMap
-                ('expenses_by_epc_nme', models.CharField(max_length=255, null=True)),
+                ('expenses_by_epc_nme', models.CharField(max_length=2055, null=True)),
                 ('expenses_by_epc_descr', models.TextField(blank=True, null=True)),
                 ('expenses_by_epc_checked', models.BooleanField(default=False, verbose_name='Проверено')),
                 ('expenses_by_epc_cost', models.DecimalField(decimal_places=2, max_digits=12)),

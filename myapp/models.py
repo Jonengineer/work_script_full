@@ -135,7 +135,7 @@ class InvestProject(models.Model):
     invest_project_group_number = models.TextField(null=True)  # TEXT equivalent
     invest_project_stage = models.TextField(null=True)  # TEXT equivalent
     invest_project_is_analogue = models.BooleanField(null=True)  # Flag equivalent
-    invest_project_shortname = models.CharField(max_length=255, null=True)  # PersonName equivalent    
+    invest_project_shortname = models.CharField(max_length=2055, null=True)  # PersonName equivalent    
     invest_project_begindate = models.DateTimeField(null=True)  # DateTimeDomain equivalent
     invest_project_enddate = models.DateTimeField(null=True)  # DateTimeDomain equivalent
     invest_project_description = models.TextField(null=True)  # LONG_NAME equivalent
@@ -163,7 +163,7 @@ class Object(models.Model):
     dict_substaion_type_id = models.IntegerField(null=True)  # DictKey, может быть null
     start_up_complex_id = models.IntegerField(null=True)  # INT4, может быть null
     dict_regions_economic_zone_id = models.IntegerField(null=True)  # DictKey, может быть null
-    object_name = models.CharField(max_length=255)  # NameDomain, not null
+    object_name = models.CharField(max_length=2055)  # NameDomain, not null
     object_mrid = models.UUIDField()  # UUIDDomain, not null
     object_is_analogue = models.BooleanField(null=True)  # BOOL, может быть null
     object_create_dttm = models.DateTimeField(null=True)  # TIMESTAMP WITH TIME ZONE, может быть null
@@ -209,7 +209,7 @@ class EpcCosts(models.Model):
     dict_cost_epc_id = models.IntegerField(null=True)  # DictKey, идентификатор расценки УНЦ
     dict_cost_epc_table_id = models.IntegerField(null=True)  # DictKey, идентификатор таблицы УНЦ
     equipment_parameter_id = models.IntegerField(null=True)  # INT4, идентификатор оборудования
-    epc_costs_id_name = models.CharField(max_length=255, null=True)  # NameDomain, может быть null
+    epc_costs_id_name = models.CharField(max_length=2055, null=True)  # NameDomain, может быть null
     epc_costs_description = models.TextField(null=True, blank=True)  # LONG_NAME, может быть null
     epc_costs_checked = models.BooleanField(default=False, verbose_name="Проверено")  # Flag, может быть null
     object = models.ForeignKey('Object', on_delete=models.CASCADE)  # Связь с моделью Object
@@ -235,7 +235,7 @@ class ExpensesByEpc(models.Model):
     dict_budgeting_id = models.IntegerField(null=True)  # DictKey, может быть null
     expense_id = models.ForeignKey('Expenses', on_delete=models.CASCADE)  # Внешний ключ на Expenses, не может быть null
     expenses_to_epc_map_id = models.ForeignKey('ExpensesToEpcMap', on_delete=models.CASCADE)  # Внешний ключ на ExpensesToEpcMap, не может быть null
-    expenses_by_epc_nme = models.CharField(max_length=255, null=True)  # NameDomain, может быть null
+    expenses_by_epc_nme = models.CharField(max_length=2055, null=True)  # NameDomain, может быть null
     expenses_by_epc_descr = models.TextField(null=True, blank=True)  # LONG_NAME, может быть null
     expenses_by_epc_checked = models.BooleanField(default=False, verbose_name="Проверено")  # Flag, не может быть null
     expenses_by_epc_cost = models.DecimalField(max_digits=12, decimal_places=2)  # Price, not null
@@ -331,7 +331,7 @@ class Expenses(models.Model):
     dict_expenditure_id = models.IntegerField(null=True)  # DictKey, может быть null
     dict_sec_chapter_id = models.ForeignKey('DictSecChapter', on_delete=models.CASCADE, null=True)  # DictKey, может быть null
     expense_value = models.DecimalField(max_digits=20, decimal_places=2, null=True)  # Price
-    expense_nme = models.CharField(max_length=255, null=True)  # NameDomain, может быть null
+    expense_nme = models.CharField(max_length=2055, null=True)  # NameDomain, может быть null
     expense_qarter = models.TextField(null=True)  # TEXT, квартал, может быть null
     expense_construction_cost = models.DecimalField(max_digits=20, decimal_places=2, null=True, blank=True, verbose_name="Стоимость строительных работ")  # Price
     expense_installation_cost = models.DecimalField(max_digits=20, decimal_places=2, null=True, blank=True, verbose_name="Стоимость монтажных работ")  # Price

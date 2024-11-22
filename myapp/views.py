@@ -1061,10 +1061,6 @@ def migrate_data_to_main_tables(request):
                         'object_update_dttm': None,
                     }
                 )
-                if created:
-                    print(f"Создан новый объект: {obj}")
-                else:
-                    print(f"Объект уже существует: {obj}")
 
                 # Создание записи в EpcCalculation
                 epc_calculation = EpcCalculation.objects.create(
@@ -1141,10 +1137,18 @@ def migrate_data_to_main_tables(request):
                                     local_estimate_data_rn=temp_table_local.row_number,
                                     local_estimate_row_data=temp_table_local.row_data
                                 )
+
+                forbidden_words = ["подпись", "должность, подпись"]  # Добавьте нужные слова
+                normalized_forbidden_words = [clean_and_normalize_string(word) for word in forbidden_words]
                     
                 if pd.notna(data.expenses_name) and data.expenses_name not in ('', '0', 'nan'):
+
+                    # Проверяем, содержит ли expenses_name запрещённое слово
+                    if any(word in clean_and_normalize_string(data.expenses_name) for word in normalized_forbidden_words):
+                        messages.error(request, f"В строке {data} {data.expenses_name} обнаружено запрещённое слово. Строка не записана.")
+                        continue                        
+
                     # Создание записи в Expenses
-                    print(f"Saving expense: name={data.expenses_name}, construction_cost={data.construction_cost}, installation_cost={data.installation_cost}, equipment_cost={data.equipment_cost}, other_cost={data.other_cost}, total_cost={data.total_cost}")
                     expense = Expenses.objects.create(
                         local_cost_estimate_id=local_cost_estimate if local_cost_estimate else None,
                         object_cost_estimate_id=object_cost_estimate if object_cost_estimate else None,
@@ -1154,11 +1158,11 @@ def migrate_data_to_main_tables(request):
                         expense_value=1,
                         expense_nme=data.expenses_name,
                         expense_qarter=data.quarter,
-                        expense_construction_cost=clean_value(data.construction_cost),  # Заменяем NaN на 0
-                        expense_installation_cost=clean_value(data.installation_cost),  # Заменяем NaN на 0
-                        expense_equipment_cost=clean_value(data.equipment_cost),        # Заменяем NaN на 0
-                        expense_other_cost=clean_value(data.other_cost),                # Заменяем NaN на 0
-                        expense_total=clean_value(data.total_cost),                     # Заменяем NaN на 0
+                        expense_construction_cost=clean_value(data.construction_cost),  
+                        expense_installation_cost=clean_value(data.installation_cost),  
+                        expense_equipment_cost=clean_value(data.equipment_cost),        
+                        expense_other_cost=clean_value(data.other_cost),                
+                        expense_total=clean_value(data.total_cost),                     
                     )
         messages.success(request, f"Проект с кодом {project_code} успешно сохранен!")
         return redirect('myapp:start')
