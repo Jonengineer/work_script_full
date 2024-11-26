@@ -1138,10 +1138,13 @@ def migrate_data_to_main_tables(request):
                                     local_estimate_row_data=temp_table_local.row_data
                                 )
 
-                forbidden_words = ["подпись", "должность, подпись"]  # Добавьте нужные слова
+                forbidden_words = ["подпись", "должность, подпись", "(должность, подпись, расшифровка)", 
+                                    'Директор филиала АО "ЦИУС ЕЭС" - ЦИУС Юга', '-', '(подпись)',  "(инициалы.фамилия)",
+                                    "(подпись.Ф.И.О.)", "подпись(инициалы.фамилия)", "тыс.руб.", "/"]
+                
                 normalized_forbidden_words = [clean_and_normalize_string(word) for word in forbidden_words]
                     
-                if pd.notna(data.expenses_name) and data.expenses_name not in ('', '0', 'nan'):
+                if pd.notna(data.expenses_name) and data.expenses_name not in ('', '0', 'nan', ' ', '  ', '  ', '    ',):
 
                     # Проверяем, содержит ли expenses_name запрещённое слово
                     if any(word in clean_and_normalize_string(data.expenses_name) for word in normalized_forbidden_words):
