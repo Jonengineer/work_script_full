@@ -1149,7 +1149,7 @@ def migrate_data_to_main_tables(request):
 
                     # Проверяем, содержит ли expenses_name запрещённое слово
                     if any(word in clean_and_normalize_string(data.expenses_name) for word in normalized_forbidden_words):
-                        messages.error(request, f"В строке {data} {data.expenses_name} обнаружено запрещённое слово. Строка не записана.")
+                        messages.error(request, f"В строке {data} {data.expenses_name} обнаружено запрещённое слово {normalized_forbidden_words}. Строка не записана.")
                         continue                        
 
                     # Создание записи в Expenses
