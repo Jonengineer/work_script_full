@@ -1147,10 +1147,17 @@ def migrate_data_to_main_tables(request):
                     
                 if pd.notna(data.expenses_name) and data.expenses_name not in ('', '0', 'nan', ' ', '  ', '  ', '    ',):
 
-                    # Проверяем, содержит ли expenses_name запрещённое слово
-                    if any(word in clean_and_normalize_string(data.expenses_name) for word in normalized_forbidden_words):
-                        messages.error(request, f"В строке {data} {data.expenses_name} обнаружено запрещённое слово {normalized_forbidden_words}. Строка не записана.")
-                        continue                        
+                    # Приводим строку к нормализованному виду и разбиваем на слова
+                    normalized_expenses_name = clean_and_normalize_string(data.expenses_name)
+                    expenses_words = set(normalized_expenses_name.split())
+
+                    # Проверяем, есть ли точное совпадение с запрещённым словом
+                    # Ищем совпадение с запрещённым словом
+                    matching_word = next((word for word in normalized_forbidden_words if word in expenses_words), None)
+                    
+                    if matching_word:
+                        messages.error(request, f"В строке {data} {data.expenses_name} обнаружено запрещённое слово '{matching_word}'. Строка не записана.")
+                        continue                     
 
                     # Создание записи в Expenses
                     expense = Expenses.objects.create(
