@@ -1012,7 +1012,7 @@ def migrate_data_to_main_tables(request):
         projects = TempTableUNC.objects.values('project_id', 'project_name').distinct()
 
         # Группировка объектов по полю name_object из TempTableUNC
-        objects_data = TempTableUNC.objects.values('name_object').distinct()
+        objects_data = TempTableUNC.objects.values('name_object').distinct()        
 
         for project in projects:
             project_id = project['project_id']
@@ -1090,6 +1090,14 @@ def migrate_data_to_main_tables(request):
             # Обработка данных из TempTable
             temp_data = TempTable.objects.all()
 
+            # Список ключевых слов, при обнаружении которых завершается перенос данных
+            stop_keywords = [
+                "Всего по сводному расчету с НДС",
+                "Итого по сводному расчету с НДС",
+                "Всего по сводному расчету",
+                "Итого по сводному расчету"
+            ]
+
             for data in temp_data:
                 summary_estimate_calculation, created = SummaryEstimateCalculation.objects.get_or_create(
                     invest_project_id=invest_project,
@@ -1145,7 +1153,7 @@ def migrate_data_to_main_tables(request):
                                     ""]
                 
                 normalized_forbidden_words = [clean_and_normalize_string(word) for word in forbidden_words]
-                    
+                                    
                 if pd.notna(data.expenses_name) and data.expenses_name not in ('', '0', 'nan', ' ', '  ', '  ', '    ',):
 
                     # Приводим строку к нормализованному виду и разбиваем на слова
@@ -1154,11 +1162,11 @@ def migrate_data_to_main_tables(request):
 
                     # Проверяем, есть ли точное совпадение с запрещённым словом
                     # Ищем совпадение с запрещённым словом
-                    matching_word = next((word for word in normalized_forbidden_words if word in expenses_words), None)
+                    matching_word = next((word for word in normalized_forbidden_words if word in expenses_words), None)  
                     
                     if matching_word:
                         messages.error(request, f"В строке {data} {data.expenses_name} обнаружено запрещённое слово '{matching_word}'. Строка не записана.")
-                        continue                     
+                        continue                   
 
                     # Создание записи в Expenses
                     expense = Expenses.objects.create(
@@ -1176,6 +1184,41 @@ def migrate_data_to_main_tables(request):
                         expense_other_cost=clean_value(data.other_cost),                
                         expense_total=clean_value(data.total_cost),                     
                     )
+
+
+                # if pd.notna(data.local_costEstimate_id) and data.local_costEstimate_id not in ('', '0', 'nan', ' ', '  ', '  ', '    ',):
+
+                #     normalized_local_costEstimate_id_words = clean_and_normalize_string(data.local_costEstimate_id)
+                #     normalized_stop_keywords = [clean_and_normalize_string(word) for word in stop_keywords]
+
+
+                #     local_costEstimate_id_words = set(normalized_local_costEstimate_id_words.split())
+                #     print(f"local_costEstimate_id_words {local_costEstimate_id_words}")
+
+                #     # Проверяем, есть ли стоп-слово в строке
+                #     stop_word = next((word for word in normalized_stop_keywords if word in local_costEstimate_id_words), None)
+                    
+                #     print(f"stop_word {stop_word}")
+                #     if stop_word:
+                #         # Создание записи в Expenses
+                #         expense = Expenses.objects.create(
+                #             local_cost_estimate_id=local_cost_estimate if local_cost_estimate else None,
+                #             object_cost_estimate_id=object_cost_estimate if object_cost_estimate else None,
+                #             summary_estimate_calculation_id=summary_estimate_calculation if summary_estimate_calculation else None,
+                #             dict_expenditure_id=None,
+                #             dict_sec_chapter_id=data.chapter_id,
+                #             expense_value=1,
+                #             expense_nme=data.expenses_name,
+                #             expense_qarter=data.quarter,
+                #             expense_construction_cost=clean_value(data.construction_cost),  
+                #             expense_installation_cost=clean_value(data.installation_cost),  
+                #             expense_equipment_cost=clean_value(data.equipment_cost),        
+                #             expense_other_cost=clean_value(data.other_cost),                
+                #             expense_total=clean_value(data.total_cost),                     
+                #         )
+                #         messages.success(request, f"Обнаружено стоп-слово '{stop_word}' в строке {data.expenses_name}. Проект успешно сохранён.")
+                #         return redirect('myapp:start')
+
         messages.success(request, f"Проект с кодом {project_code} успешно сохранен!")
         return redirect('myapp:start')
 
@@ -1711,7 +1754,7 @@ def re_add_UNC_CCR_2(request, project_id):
 
 
 # Поиск нужных столбцов для сортировки
-def find_required_columns(row_data, found_columns):
+def find_required_columns(row_data, found_columns, log_file_path="search_attempts.log"):
     # Словари для определения столбцов
     column_name_variations = {
         "Обоснование": ["Обоснование", "Обоснование сметы", "Основание", "Основание расчета", "Обоснование стоимости"],
@@ -1720,17 +1763,25 @@ def find_required_columns(row_data, found_columns):
         "Количество": ["Количество", "Кол-во", "Количество ед.", "Количество изделий"],
         "Всего": ["всего", "Стоимость, руб."]
         }
+    
+    with open(log_file_path, "a", encoding="utf-8") as log_file:
+        for column_name, column_value in row_data.items():
+            if column_name and column_value:
+                column_value = str(column_value)
+                for standard_name, variations in column_name_variations.items():
+                    # Если столбец уже найден, пропускаем
+                    if found_columns[standard_name] is not None:
+                        continue
 
-    for column_name, column_value in row_data.items():
-        if column_name and column_value:
-            column_value = str(column_value)
-            for standard_name, variations in column_name_variations.items():
-                # Если столбец уже найден, пропускаем
-                if found_columns[standard_name] is not None:
-                    continue
-                # Ищем точное совпадение
-                if any(clean_and_normalize_string(variation) == clean_and_normalize_string(column_value) for variation in variations):
-                    found_columns[standard_name] = column_name 
+                    # Пишем в лог попытку поиска
+                    # log_file.write(f"Проверяем '{column_value}' для '{standard_name}' (возможные значения: {variations})\n")
+
+                    # Ищем точное совпадение
+                    if any(clean_and_normalize_string(variation) == clean_and_normalize_string(column_value) for variation in variations):
+
+                        log_file.write(f"Нашли совпадения в '{column_value}'  для '{standard_name}' (возможные значения: {variations})\n")
+
+                        found_columns[standard_name] = column_name           
 
     return found_columns
 
@@ -1797,24 +1848,37 @@ def local_estimates_data_sort(request, project_id):
                     "Всего": None,
                 }
 
+                max_rows_to_check = 100  # Максимальное количество строк для обработки
+                max_row_range = 5  # Количество строк, после которых сбрасываем результаты
+                rows_buffer = []  # Буфер для хранения последних строк
+                required_matches = 3  # Минимальное количество совпадений
+
                 for idx, data in enumerate(local_records_data):
 
-                    if idx >= 50:  # Ограничиваем поиск первыми 50 строками
+                    if idx >= max_rows_to_check:  # Ограничиваем поиск первыми 100 строками
                         break
 
                     row_data = data.local_estimate_row_data
 
                     if row_data:
-                        found_columns = find_required_columns(row_data, found_columns)
-                        print(f"Найдено: {found_columns}")
-                        if all(found_columns.values()):                            
+
+                        rows_buffer.append(row_data)
+                        if len(rows_buffer) > max_row_range:
+                            rows_buffer.pop(0)  # Удаляем старую строку, если буфер превышает 5 строк
+
+                        # Проверяем буфер из 5 строк
+                        temp_found_columns = {key: None for key in found_columns.keys()}
+                        for buffered_row in rows_buffer:
+                            temp_found_columns = find_required_columns(buffered_row, temp_found_columns)
+                        
+
+                        if all(temp_found_columns.values()):
+                            found_columns = temp_found_columns
+                            messages.success(request, f"Найдены все столбцы в локальной смете ID: {local_record.local_cost_estimate_code}")                                 
                             break
 
-                if not found_columns or not all(found_columns.values()):
-                    messages.error(request, f"Не найдены все столбцы в локальной смете ID: {local_record.local_cost_estimate_code} {found_columns}")
-                    continue
-                else:
-                    messages.success(request, f"Найдены все столбцы в локальной смете ID: {local_record.local_cost_estimate_code}")
+                if not all(found_columns.values()):
+                    messages.error(request, f"Не найдены все столбцы в локальной смете ID: {local_record.local_cost_estimate_code} {found_columns}") 
 
             except Exception as e:
                 messages.error(request, f"Ошибка при поиске нужных столбцов: {e} в локальной смете {local_record}" )
