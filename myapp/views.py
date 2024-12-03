@@ -1757,11 +1757,11 @@ def re_add_UNC_CCR_2(request, project_id):
 def find_required_columns(row_data, found_columns, log_file_path="search_attempts.log"):
     # Словари для определения столбцов
     column_name_variations = {
-        "Обоснование": ["Обоснование", "Обоснование сметы", "Основание", "Основание расчета", "Обоснование стоимости"],
-        "Наименование работ и затрат": ["Наименование работ и затрат", "Наименование работ", "Наименование затрат", "Наименование"],
+        "Обоснование": ["Обоснование", "Обоснование сметы", "Основание", "Основание расчета", "Обоснование стоимости", "Шифр норматива", "Шифр и номер позиции норматива", "Обоснование расценок"],
+        "Наименование работ и затрат": ["Наименование работ и затрат", "Наименование работ", "Наименование затрат", "Наименование", "Шифр норматива", "Шифр и номер позиции норматива", "Обоснование расценок"],
         "Единица измерения": ["Единица измерения", "Ед. изм.", "Единица", "Ед. изм.", "ед. измер.", "ед. изм.", "Ед. измерен."],
         "Количество": ["Количество", "Кол-во", "Количество ед.", "Количество изделий", "Кол.", "Кол-во единиц"],
-        "Всего": ["всего", "Стоимость, руб."]
+        "Всего": ["всего", "Стоимость, руб.", "Общая стоимость, руб.", "Сметная стоимость в текущем уровне цен, руб."]
         }
     
     with open(log_file_path, "a", encoding="utf-8") as log_file:
@@ -1772,9 +1772,6 @@ def find_required_columns(row_data, found_columns, log_file_path="search_attempt
                     # Если столбец уже найден, пропускаем
                     if found_columns[standard_name] is not None:
                         continue
-
-                    # Пишем в лог попытку поиска
-                    # log_file.write(f"Проверяем '{column_value}' для '{standard_name}' (возможные значения: {variations})\n")
 
                     # Ищем точное совпадение
                     if any(clean_and_normalize_string(variation) == clean_and_normalize_string(column_value) for variation in variations):
@@ -1851,7 +1848,6 @@ def local_estimates_data_sort(request, project_id):
                 max_rows_to_check = 100  # Максимальное количество строк для обработки
                 max_row_range = 5  # Количество строк, после которых сбрасываем результаты
                 rows_buffer = []  # Буфер для хранения последних строк
-                required_matches = 3  # Минимальное количество совпадений
 
                 for idx, data in enumerate(local_records_data):
 
@@ -1869,12 +1865,19 @@ def local_estimates_data_sort(request, project_id):
                         # Проверяем буфер из 5 строк
                         temp_found_columns = {key: None for key in found_columns.keys()}
                         for buffered_row in rows_buffer:
-                            temp_found_columns = find_required_columns(buffered_row, temp_found_columns)
-                        
+                            temp_found_columns = find_required_columns(buffered_row, temp_found_columns)                      
 
                         if all(temp_found_columns.values()):
                             found_columns = temp_found_columns
                             messages.success(request, f"Найдены все столбцы в локальной смете ID: {local_record.local_cost_estimate_code}")                                 
+                            break
+
+                        elif temp_found_columns["Обоснование"] is not None and temp_found_columns["Наименование работ и затрат"] is not None:
+                            found_columns = temp_found_columns
+                            messages.success(
+                                request, 
+                                f"Найдены столбцы 'Обоснование' и 'Наименование работ и затрат' в локальной смете ID: {local_record.local_cost_estimate_code}"
+                            )
                             break
 
                 if not all(found_columns.values()):
@@ -1945,14 +1948,14 @@ def local_estimates_data_sort(request, project_id):
                             if data_name and isinstance(data_name, str) and all(word not in data_name for word in ("Итого", "в т.ч.", "Всего", "ВСЕГО", "Должность", "в том числе")):
                                 sorted_data = LocalEstimateDataSort(
                                     local_cost_estimate=local_record,
-                                    local_estimate_data_code=row_data.get(obosnovanie_column),
-                                    local_estimate_data_part=current_section_name,
-                                    local_estimate_data_name=row_data.get(naimenovanie_column),
-                                    local_estimate_data_type=estimate_type,
-                                    local_estimate_data_type_code=estimate_type_code,
-                                    local_estimate_data_unit=row_data.get(unit_column),
-                                    local_estimate_data_count=row_data.get(quantity_column),
-                                    local_estimate_data_total=total_value,                                    
+                                    local_estimate_data_code=row_data.get(obosnovanie_column) or "Не указано",  # Значение по умолчанию
+                                    local_estimate_data_part=current_section_name or "Общая часть",  # Значение по умолчанию
+                                    local_estimate_data_name=row_data.get(naimenovanie_column) or "Без наименования",  # Значение по умолчанию
+                                    local_estimate_data_type=estimate_type or "Неопределённый тип",  # Значение по умолчанию
+                                    local_estimate_data_type_code=estimate_type_code or 0,  # Значение по умолчанию для кода типа
+                                    local_estimate_data_unit=row_data.get(unit_column) or "шт.",  # Значение по умолчанию для единицы измерения
+                                    local_estimate_data_count=row_data.get(quantity_column) or 0,  # Значение по умолчанию для количества
+                                    local_estimate_data_total=total_value or 0,  # Значение по умолчанию для итоговой стоимости
                                 )
                                 sorted_data.save()
 
