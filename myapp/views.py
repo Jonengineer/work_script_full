@@ -733,9 +733,29 @@ def add_CCR(request):
                         if isinstance(cost_estimate_id, str):  # Проверяем, что это строка
                             cost_estimate_id = cost_estimate_id.replace(' ', '')
                         else:
-                            cost_estimate_id = str(cost_estimate_id).replace(' ', '')         
+                            cost_estimate_id = str(cost_estimate_id).replace(' ', '')      
+
+                            patterns_OSR = [
+                                r'\bОСР\b',                          # Содержит "ОСР"
+                                r'^\d{2}-\d{2}$',                    # Формат: xx-xx
+                                r'^ОСР\d{2}-\d{2}$',                 # Формат: ОСРxx-xx
+                                r'^\d{1,2}\.\d{2}-\d{2}$',           # Формат: x.xx-xx
+                                r'^\d{1,2}_\d{1,2}\.\d{2}-\d{2}$',   # Формат: x_x.xx-xx
+                            ]   
+
+                            
+                            patterns_LSR = [
+                                r'\bЛСР\b',                            # Содержит "ЛСР"
+                                r'\bЛС\b$',                            # Заканчивается на "ЛС"
+                                r'^\d{2}-\d{2}-\d{2}$',                # Формат: xx-xx-xx
+                                r'^ЛСР\d{2}-\d{2}-\d{2}$',             # Формат: ЛСРxx-xx-xx
+                                r'^\d{1,2}\.\d{2}-\d{2}-\d{2}$',       # Формат: x.xx-xx-xx
+                                r'^\d{1,2}_\d{1,2}\.\d{2}-\d{2}-\d{2}$' # Формат: x_x.xx-xx-xx
+                            ]
+
+
                                                 
-                        if re.search(r'\bОСР\b', cost_estimate_id) or re.search(r'^\d{2}-\d{2}$', cost_estimate_id) or re.search(r'^ОСР\d{2}-\d{2}$', cost_estimate_id):  
+                        if any(re.search(pattern, cost_estimate_id) for pattern in patterns_OSR):
                             match = re.search(r'\b\d{2}-\d{2}\b', cost_estimate_id)                          
                             row_data = {
                                 'chapter_id': current_chapter,
@@ -749,7 +769,7 @@ def add_CCR(request):
                                 'total_cost': row_values[7] if row_values[7] else None,
                             }
 
-                        elif re.search(r'\bЛСР\b', cost_estimate_id) or re.search(r'\bЛС\b', cost_estimate_id) or re.search(r'^\d{2}-\d{2}-\d{2}$', cost_estimate_id) or re.search(r'^ЛСР\d{2}-\d{2}-\d{2}$', cost_estimate_id):
+                        elif any(re.search(pattern, cost_estimate_id) for pattern in patterns_LSR):
                             match = re.search(r'\d{2}-\d{2}-\d{2}$', cost_estimate_id)     
                             row_data = {
                                 'chapter_id': current_chapter,
