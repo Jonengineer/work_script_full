@@ -107,7 +107,7 @@ def dict_word_page(request):
 # Объектs аналог_2
 def object_analog_2(request):
     # Получаем все проекты
-    projects = InvestProject.objects.all()
+    projects = InvestProject.objects.all().order_by('invest_project_id')
 
     # Словарь для хранения данных о проектах
     project_data = []
