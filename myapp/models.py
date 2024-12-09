@@ -39,7 +39,8 @@ class TempTable(models.Model):
     object_costEstimate_id = models.TextField(null=True, blank=True)
     local_costEstimate_id = models.TextField(null=True, blank=True)
     expenses_name = models.TextField()
-    quarter = models.TextField(null=True, blank=True)    
+    quarter = models.TextField(null=True, blank=True)
+    total_name = models.TextField(null=True, blank=True)    
     # Поля для различных типов стоимости
     construction_cost = models.TextField(null=True, blank=True, verbose_name="Стоимость строительных работ")
     installation_cost = models.TextField(null=True, blank=True, verbose_name="Стоимость монтажных работ")
@@ -303,9 +304,36 @@ class LocalEstimateData(models.Model):
     def __str__(self):
         return f"Parsed Data ID: {self.local_estimate_data_id} - {self.local_cost_estimate_id.local_cost_estimate_code} (Строка: {self.local_estimate_data_rn})"
 
-class LocalEstimateDataSort(models.Model):
+class LocalEstimateDataSort_2(models.Model):
     sort_local_estimate_id = models.AutoField(primary_key=True)  # Основной ключ
     local_cost_estimate = models.ForeignKey('LocalCostEstimate', on_delete=models.CASCADE, related_name='estimate_sort_data')  # Связь с локальной сметой
+    local_estimate_data_code = models.TextField(null=True)
+    local_estimate_data_part = models.TextField(null=True)
+    local_estimate_data_name = models.TextField(null=True)
+    local_estimate_data_type = models.TextField(null=True)
+    local_estimate_data_type_code = models.TextField(null=True)
+    local_estimate_data_unit = models.TextField(null=True)
+    local_estimate_data_count_one = models.TextField(null=True)
+    local_estimate_data_count_coef = models.TextField(null=True)
+    local_estimate_data_count_total = models.TextField(null=True)
+    local_estimate_data_cost_one = models.TextField(null=True)
+    local_estimate_data_cost_coef = models.TextField(null=True)
+    local_estimate_data_cost_total_base = models.TextField(null=True)
+    local_estimate_data_index = models.TextField(null=True)
+    local_estimate_data_cost_total_now = models.TextField(null=True)
+    local_estimate_data_cost_index_id = models.TextField(null=True)
+
+    class Meta:
+        db_table = 'local_estimate_data_sort_2'
+        verbose_name = 'Данные сортировки локальной сметы'
+        verbose_name_plural = 'Данные сортировки локальных смет'
+
+    def __str__(self):
+        return f"Parsed Data ID: {self.sort_local_estimate_id} - {self.local_cost_estimate.local_cost_estimate_code})"
+
+class LocalEstimateDataSort(models.Model):
+    sort_local_estimate_id = models.AutoField(primary_key=True)  # Основной ключ
+    local_cost_estimate = models.ForeignKey('LocalCostEstimate', on_delete=models.CASCADE, related_name='estimate_sort_data_2')  # Связь с локальной сметой
     local_estimate_data_code = models.TextField(null=True)
     local_estimate_data_part = models.TextField(null=True)
     local_estimate_data_name = models.TextField(null=True)
@@ -322,6 +350,8 @@ class LocalEstimateDataSort(models.Model):
 
     def __str__(self):
         return f"Parsed Data ID: {self.sort_local_estimate_id} - {self.local_cost_estimate.local_cost_estimate_code})"
+
+
 
 class Expenses(models.Model):
     expense_id = models.AutoField(primary_key=True)  # SERIAL, основной ключ
@@ -340,7 +370,7 @@ class Expenses(models.Model):
     expense_total = models.DecimalField(max_digits=20, decimal_places=2, null=True, blank=True, verbose_name="Общая сметная стоимость")  # Price
     expense_description = models.TextField(null=True, blank=True)  # LONG_NAME, может быть null
     expense_checked = models.BooleanField(default=False, verbose_name="Проверено", null=True, blank=True)  # Flag
-
+    expense_total_name = models.TextField(null=True)
 
     class Meta:
         db_table = 'expenses'

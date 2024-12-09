@@ -40,9 +40,11 @@
                   <th>Проверено (ССР)</th>
                   <th>Проверено (ССР+УНЦ)</th>
                   <th>Сортировка ЛСР</th>
+                  <th>Сортировка ЛСР_2</th>
                   <th>Проверен</th>                
                   <th>Посмотреть</th>
                   <th>Сортирвать ЛСР</th>
+                  <th>Сортирвать ЛСР_2</th>
                   <th>Связать повторно</th>
                   <th>Удалить</th>
               </tr>
@@ -58,6 +60,7 @@
                       <td>{{ project_data.num_checked }}</td>
                       <td>{{ project_data.num_checked_byepc }}</td>
                       <td>{{ project_data.num_checked_sort }}</td>
+                      <td>{{ project_data.num_checked_sort_2 }}</td>
                       <td>
                         {% if project_data.num_checked_byepc == project_data.num_records_TX and project_data.num_records_TX != 0 %}
                             <!-- Зелёный значок -->
@@ -72,6 +75,9 @@
                       </td>
                       <td>
                         <a href="{% url 'myapp:local_estimates_data_sort' project_id=project_data.project.invest_project_id %}" class="waves-effect waves-light btn">Сортировка</a>
+                      </td>
+                      <td>
+                        <a href="{% url 'myapp:local_estimates_data_sort_new' project_id=project_data.project.invest_project_id %}" class="waves-effect waves-light btn">Сортировка_2</a>
                       </td>
                       <td>
                           <a href="{% url 'myapp:re_add_UNC_CCR_2' project_id=project_data.project.invest_project_id %}" class="waves-effect waves-light btn">Связать</a>

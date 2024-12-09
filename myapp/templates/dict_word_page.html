@@ -53,7 +53,7 @@
               <input type="text" id="expense_voltage" name="expense_voltage" required>
             </div>
             <div class="input-field">
-              <label for="expense_type">Тип затраты (1-Оборудование, 2-работы, 3-материалы):</label>
+              <label for="expense_type">Тип затраты (1-Оборудование и материалы, 2-работы):</label>
               <input type="text" id="expense_type" name="expense_type" required>
             </div>             
             <div class="content-btn">
@@ -87,7 +87,7 @@
                         <td>{{ record.expenses_to_epc_map_id }}</td>
                         <td>
                           <span id="name-text-{{ record.expenses_to_epc_map_id }}">{{ record.expenses_to_epc_map_nme }}</span>
-                          <input type="text" name="expense_name" id="name-input-{{ record.expenses_to_epc_map_id }}" value="{{ record.expenses_to_epc_map_name }}" style="display: none;">
+                          <input type="text" name="expense_name" id="name-input-{{ record.expenses_to_epc_map_id }}" value="{{ record.expenses_to_epc_map_nme }}" style="display: none;">
                         </td>
                         <td>
                           <span id="epc-text-{{ record.expenses_to_epc_map_id }}">{{ record.expenses_to_epc_map_epc }}</span>

@@ -29,5 +29,6 @@ urlpatterns = [
     path('save_all_object_analogs_UNC/<str:project_id>/', views.save_all_object_analogs_UNC, name='save_all_object_analogs_UNC'),
     path('migrate_data_to_main_tables/', views.migrate_data_to_main_tables, name='migrate_data_to_main_tables'),
     path('re_add_UNC_CCR_2/<str:project_id>/', views.re_add_UNC_CCR_2, name='re_add_UNC_CCR_2'),    
-    path('local_estimates_data_sort/<str:project_id>/', views.local_estimates_data_sort, name='local_estimates_data_sort'),    
+    path('local_estimates_data_sort/<str:project_id>/', views.local_estimates_data_sort, name='local_estimates_data_sort'), 
+    path('local_estimates_data_sort_new/<str:project_id>/', views.local_estimates_data_sort_new, name='local_estimates_data_sort_new'),       
 ]
