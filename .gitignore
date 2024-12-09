@@ -14,3 +14,4 @@ myproject/settings.py
 myproject/__pycache__/settings.cpython-311.pyc
 
 
+search_attempts.log
