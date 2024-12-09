@@ -2094,7 +2094,7 @@ def local_estimates_data_sort_new(request, project_id):
         local_records = LocalCostEstimate.objects.filter(summary_estimate_calculation_id__in=summary_estimate)
 
         for local_record_delete in local_records:
-            deleted_count, _ = LocalEstimateDataSort.objects.filter(local_cost_estimate=local_record_delete).delete()
+            deleted_count, _ = LocalEstimateDataSort_2.objects.filter(local_cost_estimate=local_record_delete).delete()
             total_deleted += deleted_count
         
         messages.success(request, f"Удалено {total_deleted} отсортированных записей")
