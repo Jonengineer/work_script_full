@@ -19,7 +19,6 @@ from asgiref.sync import async_to_sync
 from asgiref.sync import sync_to_async
 import difflib
 import traceback
-import csv
 
 logging.basicConfig(
     filename='debug.log',  # Имя файла, куда будут записываться логи
@@ -645,7 +644,7 @@ def add_CCR(request):
             target_column = None
 
             stop_words = [
-                "Итого по главам 1-12:",       
+                "Непредвиденные затраты",       
             ]
 
             for data in rows_data:
@@ -661,31 +660,40 @@ def add_CCR(request):
                 if any(clean_and_normalize_string(stop_word) == combined_row for stop_word in stop_words):
                     messages.warning(request, f"Найдена строка с содержанием стоп-слов: {combined_row}. Обрабатываем строку и завершаем парсинг.")
 
-                    # Обработка текущей строки как итоговой
-                    try:
-                        # Проверяем, какие данные передаются
-                        temp_data = {
-                            'chapter_id': previous_chapter_instance,
-                            'quarter': quarter_row,
-                            'object_costEstimate_id': None,
-                            'local_costEstimate_id': None,
-                            'expenses_name': row_values[2] if len(row_values) > 2 else None,
-                            'construction_cost': clean_decimal_value(row_values[3]) if len(row_values) > 3 else None,
-                            'installation_cost': clean_decimal_value(row_values[4]) if len(row_values) > 4 else None,
-                            'equipment_cost': clean_decimal_value(row_values[5]) if len(row_values) > 5 else None,
-                            'other_cost': clean_decimal_value(row_values[6]) if len(row_values) > 6 else None,
-                            'total_cost': clean_decimal_value(row_values[7]) if len(row_values) > 7 else None,
-                            'total_name': row_values[1] if len(row_values) > 1 else None,
-                        }
+                    # Сохраняем строки, которые были накоплены до этого
+                    if rows_to_insert:
+                        for r in rows_to_insert:
+                            TempTable.objects.create(
+                                chapter_id=previous_chapter_instance,
+                                quarter=quarter_row,
+                                object_costEstimate_id=r['object_costEstimate_id'],
+                                local_costEstimate_id=r['local_costEstimate_id'],
+                                expenses_name=r['expenses_name'],
+                                construction_cost=clean_decimal_value(r['construction_cost']),
+                                installation_cost=clean_decimal_value(r['installation_cost']),
+                                equipment_cost=clean_decimal_value(r['equipment_cost']),
+                                other_cost=clean_decimal_value(r['other_cost']),
+                                total_cost=clean_decimal_value(r['total_cost']),
+                                total_name=r['total_name']
+                            )
+                        rows_to_insert = []  # Очищаем список после сохранения
 
-                        # Сохраняем данные
-                        TempTable.objects.create(**temp_data)
-                        messages.success(request, "Строка успешно сохранена в базу данных.")
-
-                    except Exception as e:
-                        # Выводим полную информацию об ошибке
-                        messages.error(request, f"Ошибка при обработке строки {index}: {e}")
-                        print(f"Ошибка при сохранении: {e}")
+                    if additional_rows:
+                        for r in additional_rows:
+                            TempTable.objects.create(
+                                chapter_id=previous_chapter_instance,
+                                quarter=quarter_row,
+                                object_costEstimate_id=r['object_costEstimate_id'],
+                                local_costEstimate_id=r['local_costEstimate_id'],
+                                expenses_name=r['expenses_name'],
+                                construction_cost=clean_decimal_value(r['construction_cost']),
+                                installation_cost=clean_decimal_value(r['installation_cost']),
+                                equipment_cost=clean_decimal_value(r['equipment_cost']),
+                                other_cost=clean_decimal_value(r['other_cost']),
+                                total_cost=clean_decimal_value(r['total_cost']),
+                                total_name=r['total_name']
+                            )
+                        additional_rows = []  # Очищаем список после сохранения
 
                     # Завершаем цикл
                     break
@@ -774,6 +782,20 @@ def add_CCR(request):
                         if any(re.search(phrase.lower(), cleaned_value) for phrase in key_phrases) and "главе" in cleaned_value:
                             target_column = cleaned_value
                             messages.success(request, f"Финальная строка найдена: {target_column}")
+
+                            row_data = {
+                                'chapter_id': current_chapter,
+                                'object_costEstimate_id': None,
+                                'local_costEstimate_id': None,
+                                'expenses_name': row_values[2] if len(row_values) > 2 else None,
+                                'construction_cost': clean_decimal_value(row_values[3]) if len(row_values) > 3 else None,
+                                'installation_cost': clean_decimal_value(row_values[4]) if len(row_values) > 4 else None,
+                                'equipment_cost': clean_decimal_value(row_values[5]) if len(row_values) > 5 else None,
+                                'other_cost': clean_decimal_value(row_values[6]) if len(row_values) > 6 else None,
+                                'total_cost': clean_decimal_value(row_values[7]) if len(row_values) > 7 else None,
+                                'total_name': row_values[1] if len(row_values) > 1 else None,
+                            }
+                            additional_rows.append(row_data)
                             break
 
                 if current_chapter is not None:   
@@ -913,6 +935,8 @@ def add_CCR(request):
                         total_cost=clean_decimal_value(r['total_cost']),
                         total_name=r['total_name']
                     )
+
+                additional_rows = []
 
             # Второй этап: Проход по всем записям с локальными сметами и вызов парсинга
             local_estimates = TempTable.objects.filter(local_costEstimate_id__isnull=False)
@@ -1472,13 +1496,17 @@ def process_expense_record(request, expense_record, unc_keyword_map, unc_keyword
         if expense_record.local_cost_estimate_id is not None:
             
             try:
+
+                LCR = expense_record.local_cost_estimate_id.local_cost_estimate_code 
+
                 # Берем одну локальную смету
                 local_cost_estimate = expense_record.local_cost_estimate_id
-     
+                
                 # Проверка на None для local_cost_estimate
                 if local_cost_estimate is None:
                     messages.error(request, f"Ошибка: у записи расхода {expense_record.expense_id} отсутствует local_cost_estimate.")
                     return
+                
                 LCR = expense_record.local_cost_estimate_id.local_cost_estimate_code  
                 
                 # Получаем все записи из LocalEstimateData, связанные с этой сметой
@@ -1644,7 +1672,7 @@ async def process_local_estimates(request, local_estimates, unc_keyword_map_loca
                 await sync_to_async(messages.info)(request, f"Объект найден: {object_name_found}")
         except Exception as e:
             await sync_to_async(messages.error)(request, f"Ошибка при проверке объекта в локальных сметах: {e}")
-           
+        
         # Перебираем локальные сметы
         print(f"Перебираем локальные сметы")
         for sorted_record in local_records_sort_list:
@@ -1809,7 +1837,7 @@ def find_required_columns(row_data, found_columns=None, log_file_path="search_at
     # Словари для определения столбцов
     column_name_variations = {
         "Обоснование": ["Обоснование", "Обоснование сметы", "Основание", "Основание расчета", "Обоснование стоимости", "Шифр норматива", "Шифр и номер позиции норматива", "Обоснование расценок", "Обосно-вание", "Обоснование стоимости"],
-        "Наименование работ и затрат": ["Наименование работ и затрат", "Наименование работ", "Наименование затрат", "Наименование", "Шифр норматива", "Шифр и номер позиции норматива", "Обоснование расценок", "Описание вида работ"],
+        "Наименование работ и затрат": ["Наименование работ и затрат", "Наименование работ", "Наименование затрат", "Наименование", "Описание вида работ", "Наименование работ и затрат, единица измерения"],
         "Единица измерения": ["Единица измерения", "Ед. изм.", "Единица", "Ед. изм.", "ед. измер.", "ед. изм.", "Ед. измерен."],
         "на единицу": ["на единицу"],
         "коэффициенты": ["коэффициенты"],
@@ -1890,6 +1918,11 @@ def find_total_value(local_records_data, total_column):
                         return row_data.get(total_column)
     return None
 
+# Проверяем каждое ключевое слово
+def keyword_in_text(keyword, text):
+    pattern = rf'{re.escape(keyword)}'
+    return re.search(pattern, text) is not None
+
 # Сортироака локальных смет (Архив)
 def local_estimates_data_sort(request, project_id):
     current_section_name = None
@@ -1897,10 +1930,64 @@ def local_estimates_data_sort(request, project_id):
     total_deleted = 0
 
     #Списки для определения типа затраты
-    equipment_materials_keywords = ["ос-15", "ос15", "ооо", "ао", "siemens", "ка№", "ка п.", "тка ооо", "конъюктурный анализ", "договор №", "договор поставки"
-                                        "cisco", "тц_", "тц-", "-тц", "ткп", "кп ооо", "кп ао", "кп", "договорная цена", "прайс", "прайс-лист",
-                                        "62.4.01.01-0005", "20.2.03.09-0001", "12.1.02.15", "фссц", "спецификация №", "мониторинг",
-                                        "счет ООО", "счет ао", "счет№", "счет-спецификация", "счет на оплату", "счет-фактура"]
+    equipment_materials_keywords = [
+        "ос-15", "ос15", "ооо", "ао", "siemens", "ка№", "ка п.",
+        "тка ооо", "конъюктурный анализ", "договор №", "договор поставки", "cisco", "тц_", "тц-",
+        "-тц", "ткп", "кп ооо", "кп ао", "кп", "договорная цена", "прайс",
+        "прайс-лист", "фссц", "спецификация №", "мониторинг", "счет ООО", "счет ао", "счет№",
+        "счет-спецификация", "счет на оплату", "счет-фактура", "BEWARD", "Cisco", "http://www.", "Hyperline",
+        "NETWORK", "N-Kabel", "Phoenix contact", "rittaler.ru", "RS24.ru", "X-COM от 15.04.2020", "Z kabel",
+        "Z.KABEL", "Абсолют Сибирь", "АВС Электро", "Акт приема-передачи  оборудования", "Арсенал", "АСбергАС", "входит в комплект поставки",
+        "входит в комплект поставки разъединителя", "Входит в комплект поставки ЩПТ", "входит в комплект поставки ячейки КРУ", "Гарден Центр Групп", "Договор поставки", "Евроавтоматика",
+        "Завод ИНКАБ", "Заявка на поставку Товара", "из существующего подвеса", "Изм.6 Пр.1", "Инженерные строительные решения", "кабель.рф", "Калькуляция №",
+        "Калькуляция определения", "Каскад Электро", "Каталог", "Коммерческое предложение", "Компания ИМАГ", "Конъюнктурный анализ", "Кталог ЭТМ",
+        "Миг-Электро", "Минстрой РФ", "Монитонг цен", "на ж/б", "Надбавка к стоимости бетона", "Надбавка на водонепроницаемость", "Надбавка на морозостойкость",
+        "накладная", "Не указано", "О.У. Приложение 15", "Оборудование заказчика", "ОП прил", "ОП ТССЦ", "П2200059",
+        "Письмо Минстрой", "Поставка Заказчика", "Поставка подрядчика", "Поставляется комплектно с ЗВУ", "Поставляется комплекто с ШР1", "Постановление правительства РФ №310", "Прай",
+        "Предложение ГК Блок", "Предложение Ижорастройком", "Приложенеи к договору", "Приложение к письму", "Приложение таблица", "Приложение к Допсоглашение", "ПрософтСистемы",
+        "Пульс цен", "релейную защиту и автоматику", "Русский свет", "СБЦИИС", "ССЦ", "стоимость устройства входит", "Стоимость учтена",
+        "СтройПром ЖБИ", "СФ №", "СЦ 7.5-1-2-01", "СЦиР5.4_0-16-267-7-2-12", "СЦиР5.4_0-16-267-7-2-2", "сч/ф", "Счет ЭТМ",
+        "Т/Н №", "ТД УНКОМТЕХ", "ТД МЕГАПРОМ", "тех часть ТССЦ", "Тех. часть", "ТЗВА", "ТН №",
+        "Товарная накладная", "Том", "ТОРГ", "ТССЦ", "ТСЦ", "ТСЭМ", "ТЦ",
+        "ТЧ ", "ТЧ-", "УралЭнергоСервис", "ФСЭМ", "Фундболт", "Ц_", "Цена поставщика",
+        "Шефмонтаж выключателя", "ЭКРА", "Элек.ру", "Электрокомплектсервис", "Электрощит", "Энергия", "ЭОК+",
+        "ЭТМ", "Материал со склада", "Давальческий материал", "стоимость материала  входит в стоимость", "01.1.", "01.2.", "01.3.",
+        "01.4.", "01.5.", "01.6.", "01.7.", "01.8.", "02.1.", "02.2.", "02.3.", "02.4.", "03.1.", "03.2.", "04.1.", "04.2.", "04.3.",
+        "05.1.", "05.2.", "05.3.", "05.4.", "06.1.", "06.2.", "07.1.", "07.2.", "07.3.", "07.4.", "07.5.", "08.1.", "08.2.", "08.3.",
+        "08.4.", "09.1.", "09.2.", "09.3.", "09.4.", "10.1.", "10.2.", "10.3.", "10.4.", "11.1.", "11.2.", "11.3.", "12.1.", "12.2.",
+        "13.1.", "13.2.", "14.1.", "14.2.", "14.3.", "14.4.", "14.5.", "15.1.", "15.2.", "16.1.", "16.2.", "16.3.", "17.1.", "17.2.",
+        "17.3.", "17.4.", "18.1.", "18.2.", "18.3.", "18.4.", "18.5.", "19.1.", "19.2.", "19.3.", "19.4.", "20.1.", "20.2.", "20.3.",
+        "20.4.", "20.5.", "20.9.", "21.1.", "21.2.", "22.1.", "22.2.", "23.1. ", "23.2. ", "23.3. ", "23.4. ", "23.5. ", "23.6. ", "23.7. ",
+        "23.8. ", "24.1. ", "24.2. ", "24.3. ", "25.1. ", "25.2. ", "25.3. ", "26.1.", "27.1. ", "27.2.", "100.1", "100.2", "101-", "102.1",
+        "102.2", "102-", "103-", "104-", "105.1", "105-", "106.1", "107.1", "107-", "109.1", "109.2", "109-", "11.1", "11.2",
+        "11.3", "110.", "110-", "111.1", "111.2", "111-", "112.1", "113-", "114.1", "114-", "115.", "116.", "117.",
+        "117-", "118.", "119.", "120.1", "121.1", "122.1", "123.1", "124.1", "125.1", "126.1", "127.1", "128.1",
+        "129.1", "13.1", "13.2", "130.1", "13-03", "131.1", "133.1", "134.1", "136.1", "137.1", "138.1", "14.1", "14.2", "14.3",
+        "14.4", "14.5", "141.1", "142.1", "143.1", "144.2", "146.1", "147.1", "149.1", "15.1", "15.2", "150.1", "150302", "154.1",
+        "154.2", "16.10", "16.11", "16.20", "161.1", "163.1", "163.2", "164.1", "165.1", "165.2", "166.1", "169.1",
+        "17.1", "17.2", "170.1", "171.1", "172.1", "174.1", "174.2", "175.1", "176.1", "176.2", "179.1", "18.1", "18.2", "18.3",
+        "18.4", "18.5", "180.1", "183.", "186.1", "189.1", "19.1", "19.2", "19.3", "19.4", "19.5", "194.1", "196.1", "196.2", "198.1",
+        "2.10", "2.12", "2.13", "2.1.", "2.2.", "2.5.", "2.7.", "20.1", "20.2", "20.3", "20.4", "20.5",
+        "201-", "202.1", "202-", "203-", "204-", "206-", "207.1", "208.1", "21.1", "21.2", "22.1", "22.2", "224.1",
+        "224.2", "228.1", "23.1", "23.2", "23.3", "23.4", "23.5", "23.6", "23.7", "23.8", "234.1", "237.1", "24.1", "24.2",
+        "24.3", "25.1", "25.2", "25.3", "254.", "26.1", "26.2", "263.", "266.", "268.", "27.1", "27.2", "274.", "28.1",
+        "28.2", "292.", "3.10", "3.11", "3.12", "3.14", "3.20", "3.5.", "3.7.", "3.9.", "30.1", "301-", "302-", "31.1",
+        "314.", "32.1", "32.2", "32.3", "32.4", "32.5", "33.1", "33.2", "338.", "34.1", "34.2", "35.1", "35.2", "36.1",
+        "36.2", "362.", "364.", "37.1", "37.2", "37.3", "38.1", "38.2", "39.1", "4.10", "4.12", "4.13", "4.2.", "4.5.",
+        "4.7.", "400004", "401-", "402-", "403-", "404-", "407-", "408-", "41.1", "410-", "411-", "412-", "413-", "414-",
+        "42.1", "42.2", "43.1", "43.2", "44.1", "44.2", "45.1", "45.2", "46.1", "46.2", "47.1", "47.2", "48.1", "49.1",
+        "49.2", "5.10", "5.11", "5.12", "5.14", "5.25", "50.1", "50.2", "501-", "502-", "503-", "504-", "506-", "507-",
+        "508-", "509-", "51.1", "52.1", "53.1", "53.2", "54.1", "54.2", "55.1", "55.2", "55.3", "56.1", "56.2", "57.1",
+        "58.1", "59.1", "59.2", "6.10", "6.11", "6.12", "6.20", "6.22", "60.1", "61.1", "61.2", "61.3", "62.1", "62.2",
+        "62.3", "62.4", "62.5", "62.6", "62.7", "63.1", "63.2", "63.3", "63.4", "64.1", "64.2", "64.5", "65.1", "65.2",
+        "65.3", "66.1", "66.2", "67.1", "67.2", "68.1", "68.2", "69.1", "69.2", "7.10", "7.11", "7.12", "7.13", "7.20",
+        "7.23", "70.1", "71.1", "71.2", "72.1", "73.1", "73.2", "74.1", "74.2", "75.1", "77.1", "78.1", "78.2", "79.1",
+        "8.10", "8.11", "8.12", "8.13", "8.14", "8.20", "80.1", "81.1", "82.1", "83.1", "84.1", "85.1", "86.1", "86.2",
+        "9.10", "9.11", "9.13", "9.14", "9.20", "9.22", "90.1", "90.2", "91.0", "91.1", "92.1", "93.1", "93.2", "94.1",
+        "95.1", "96.1", "98.1", "99.1", "99.2", "Заявка ", "Договор", "входит в", "вкл. В", "http", "КА 1", "КА 2", "КА №", "КА!",
+        "КА1", "Калькул", "Коммерч", "Конъюнктур", "Монитонг", "ТСЦ ", "ТЦ.0", "ТЦ.1", "ТЦ10", "ТЦ20", "ТЦ21", "ТЦ61", "ТЦ62", "ТЧ -61",
+        "ТЧ-10", "ТЧ-18", "ТЧ-21", "ТЧ-61", "Ц_10", "Ц_64", "ЭОК"
+    ]
     works_keywords = ["фссцпг", "фер", "ферм", "тер", "терм", "ферп", "терп"]
     coefficient_keywords = ["приказ №", "приказ от", "Приказ"]
     building_keywords = ["999-9900"]
@@ -1926,6 +2013,20 @@ def local_estimates_data_sort(request, project_id):
     # Шаг 2: Поиск нужных столбцов в  local_records_data
     try:        
         for local_record in local_records:
+
+            local_records_expense_nme = Expenses.objects.filter(local_cost_estimate_id=local_record)
+
+
+            demontazh_found = False
+            for expense in local_records_expense_nme:
+                if expense.expense_nme is not None and "демонтаж" in expense.expense_nme.lower():
+                    LCR = expense.local_cost_estimate_id.local_cost_estimate_code
+                    messages.info(request, f"Смета {LCR} не отсортирована, найдено слово демонтаж")
+                    demontazh_found = True
+                    break
+
+            if demontazh_found:
+                continue
 
             local_records_data = LocalEstimateData.objects.filter(local_cost_estimate_id=local_record).order_by('local_estimate_data_rn')
             
@@ -2008,25 +2109,25 @@ def local_estimates_data_sort(request, project_id):
                             estimate_type = "Прочее"
                             estimate_type_code = 40
 
-                            lower_data_code = str(row_data.get(obosnovanie_column)).lower()                        
+                            lower_data_code = str(row_data.get(obosnovanie_column)).lower()
 
                             # Определяем тип по ключевым словам в названии раздела
-                            if any(keyword in lower_data_code for keyword in equipment_materials_keywords):
-                                estimate_type = "Оборудование/Материал"
+                            if any(keyword_in_text(keyword.lower(), lower_data_code) for keyword in equipment_materials_keywords):
+                                estimate_type = "Оборудование/Материал"                                
                                 estimate_type_code = 1
-                            elif any(keyword in lower_data_code for keyword in works_keywords):
+                            elif any(keyword_in_text(keyword.lower(), lower_data_code) for keyword in works_keywords):
                                 estimate_type = "Работы"
                                 estimate_type_code = 2
-                            elif any(keyword in lower_data_code for keyword in coefficient_keywords):
+                            elif any(keyword_in_text(keyword.lower(), lower_data_code) for keyword in coefficient_keywords):
                                 estimate_type = "Коэффициент"
                                 estimate_type_code = 3
-                            elif any(keyword in lower_data_code for keyword in unregulated_keywords):
+                            elif any(keyword_in_text(keyword.lower(), lower_data_code) for keyword in unregulated_keywords):
                                 estimate_type = "Вспомогательные ненормируемые материалы"
                                 estimate_type_code = 4 
-                            elif any(keyword in lower_data_code for keyword in building_keywords):
+                            elif any(keyword_in_text(keyword.lower(), lower_data_code) for keyword in building_keywords):
                                 estimate_type = "Строительный мусор"
                                 estimate_type_code = 5
-                            elif any(keyword in lower_data_code for keyword in NR_SP_keywords):
+                            elif any(keyword_in_text(keyword.lower(), lower_data_code) for keyword in NR_SP_keywords):
                                 estimate_type = "НР и СП"
                                 estimate_type_code = 5
 
@@ -2037,14 +2138,13 @@ def local_estimates_data_sort(request, project_id):
                             if not total_value or total_value == "":
                                 total_value = find_total_value(local_records_data, total_column)
 
-
                             if data_name and isinstance(data_name, str) and all(word not in data_name for word in ("Итого", "в т.ч.", "Всего", "ВСЕГО", "Должность", "в том числе")):
                                 sorted_data = LocalEstimateDataSort(
                                     local_cost_estimate=local_record,
-                                    local_estimate_data_code=row_data.get(obosnovanie_column) or "Не указано",  # Значение по умолчанию
-                                    local_estimate_data_part=current_section_name or "Общая часть",  # Значение по умолчанию
-                                    local_estimate_data_name=row_data.get(naimenovanie_column) or "Без наименования",  # Значение по умолчанию
-                                    local_estimate_data_type=estimate_type or "Неопределённый тип",  # Значение по умолчанию
+                                    local_estimate_data_code=row_data.get(obosnovanie_column) or "Не определено",  # Значение по умолчанию
+                                    local_estimate_data_part=current_section_name or "Не определено",  # Значение по умолчанию
+                                    local_estimate_data_name=row_data.get(naimenovanie_column) or "Не определено",  # Значение по умолчанию
+                                    local_estimate_data_type=estimate_type or "Не определено",  # Значение по умолчанию
                                     local_estimate_data_type_code=estimate_type_code or 0,  # Значение по умолчанию для кода типа
                                     local_estimate_data_unit=row_data.get(unit_column) or "шт.",  # Значение по умолчанию для единицы измерения
                                     local_estimate_data_count=row_data.get(quantity_column) or 0,  # Значение по умолчанию для количества
