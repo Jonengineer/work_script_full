@@ -19,6 +19,7 @@ from asgiref.sync import async_to_sync
 from asgiref.sync import sync_to_async
 import difflib
 import traceback
+from django.db.models import Count, Q
 
 logging.basicConfig(
     filename='debug.log',  # Имя файла, куда будут записываться логи
@@ -103,48 +104,108 @@ def dict_word_page(request):
     }
     return render(request, 'dict_word_page.html', context)
 
-# Объектs аналог_2
+# # Объектs аналог_2
+# def object_analog_2(request):
+#     # Получаем все проекты
+#     projects = InvestProject.objects.all().order_by('invest_project_id')
+
+#     # Словарь для хранения данных о проектах
+#     project_data = []
+
+#     for project in projects:
+#         # Подсчитываем количество позиций в сметах для текущего проекта
+#         total_expenses = Expenses.objects.filter(summary_estimate_calculation_id__invest_project_id=project).count()
+
+#         # Подсчитываем количество связанных позиций
+#         related_positions = ExpensesByEpc.objects.filter(expense_id__summary_estimate_calculation_id__invest_project_id=project).distinct().count()
+
+#         # Подсчитываем количество проверенных позиций
+#         checked_positions_expenses = Expenses.objects.filter(summary_estimate_calculation_id__invest_project_id=project, expense_checked=True).distinct().count()
+
+#         # Подсчитываем количество проверенных позиций
+#         checked_positions_expensesbyepc = ExpensesByEpc.objects.filter(expense_id__summary_estimate_calculation_id__invest_project_id=project, expenses_by_epc_checked=True).distinct().count()
+
+#         # Подсчитываем количество отсортированых позиций
+#         checked_positions_sort = LocalEstimateDataSort.objects.filter(local_cost_estimate__summary_estimate_calculation_id__invest_project_id=project).distinct().count()
+
+#         # # Подсчитываем количество отсортированых позиций
+#         # checked_positions_sort_2 = LocalEstimateDataSort_2.objects.filter(local_cost_estimate__summary_estimate_calculation_id__invest_project_id=project).distinct().count()
+        
+#         # Добавляем данные в список
+#         project_data.append({
+#             'project': project,
+#             'num_records': total_expenses,
+#             'num_records_TX': related_positions,
+#             'num_checked': checked_positions_expenses,
+#             'num_checked_byepc': checked_positions_expensesbyepc,
+#             'num_checked_sort': checked_positions_sort,
+#             # 'num_checked_sort_2': checked_positions_sort_2,
+#         })
+
+#     context = {
+#         'projects': project_data,
+#     }
+
+#     return render(request, 'object_anlog_2.html', context)
+
 def object_analog_2(request):
     # Получаем все проекты
     projects = InvestProject.objects.all().order_by('invest_project_id')
+    # Собираем IDs проектов
+    project_ids = list(projects.values_list('invest_project_id', flat=True))
+    # Получаем все расчеты
+    summary_calculations = SummaryEstimateCalculation.objects.filter(invest_project_id__in=project_ids)
+    # Собираем IDs расчетов
+    summary_ids = list(summary_calculations.values_list('summary_estimate_calculation_id', flat=True))
+    # Загружаем все нужные данные за один раз
+    expenses_count = Expenses.objects.filter(summary_estimate_calculation_id__in=summary_ids).values(
+        'summary_estimate_calculation_id'
+    ).annotate(
+        total_expenses=Count('expense_id'),
+        checked_positions_expenses=Count('expense_id', filter=Q(expense_checked=True))
+    )
 
-    # Словарь для хранения данных о проектах
+    expenses_by_epc_count = ExpensesByEpc.objects.filter(expense_id__summary_estimate_calculation_id__in=summary_ids).values(
+        'expense_id__summary_estimate_calculation_id'
+    ).annotate(
+        related_positions=Count('expenses_by_epc_id', distinct=True),
+        checked_positions_expensesbyepc=Count('expenses_by_epc_id', filter=Q(expenses_by_epc_checked=True), distinct=True)
+    )
+
+    estimate_sort_count = LocalEstimateDataSort.objects.filter(local_cost_estimate__summary_estimate_calculation_id__in=summary_ids).values(
+        'local_cost_estimate__summary_estimate_calculation_id'
+    ).annotate(
+        checked_positions_sort=Count('sort_local_estimate_id', distinct=True)
+    )
+
+    estimate_sort_2_count = LocalEstimateDataSort_2.objects.filter(local_cost_estimate__summary_estimate_calculation_id__in=summary_ids).values(
+        'local_cost_estimate__summary_estimate_calculation_id'
+    ).annotate(
+        checked_positions_sort_2=Count('sort_local_estimate_id', distinct=True)
+    )
+
+    # Создаем словари для быстрого поиска
+    expenses_count_dict = {x['summary_estimate_calculation_id']: x for x in expenses_count}
+    expenses_by_epc_dict = {x['expense_id__summary_estimate_calculation_id']: x for x in expenses_by_epc_count}
+    estimate_sort_dict = {x['local_cost_estimate__summary_estimate_calculation_id']: x for x in estimate_sort_count}
+    estimate_sort_2_dict = {x['local_cost_estimate__summary_estimate_calculation_id']: x for x in estimate_sort_2_count}
+
+    # Формируем список данных о проектах
     project_data = []
-
     for project in projects:
-        # Подсчитываем количество позиций в сметах для текущего проекта
-        total_expenses = Expenses.objects.filter(summary_estimate_calculation_id__invest_project_id=project).count()
+        summary_id = summary_calculations.filter(invest_project_id=project.invest_project_id).values_list('summary_estimate_calculation_id', flat=True).first()
 
-        # Подсчитываем количество связанных позиций
-        related_positions = ExpensesByEpc.objects.filter(expense_id__summary_estimate_calculation_id__invest_project_id=project).distinct().count()
-
-        # Подсчитываем количество проверенных позиций
-        checked_positions_expenses = Expenses.objects.filter(summary_estimate_calculation_id__invest_project_id=project, expense_checked=True).distinct().count()
-
-        # Подсчитываем количество проверенных позиций
-        checked_positions_expensesbyepc = ExpensesByEpc.objects.filter(expense_id__summary_estimate_calculation_id__invest_project_id=project, expenses_by_epc_checked=True).distinct().count()
-
-        # Подсчитываем количество отсортированых позиций
-        checked_positions_sort = LocalEstimateDataSort.objects.filter(local_cost_estimate__summary_estimate_calculation_id__invest_project_id=project).distinct().count()
-
-        # Подсчитываем количество отсортированых позиций
-        checked_positions_sort_2 = LocalEstimateDataSort_2.objects.filter(local_cost_estimate__summary_estimate_calculation_id__invest_project_id=project).distinct().count()
-        
-        # Добавляем данные в список
         project_data.append({
             'project': project,
-            'num_records': total_expenses,
-            'num_records_TX': related_positions,
-            'num_checked': checked_positions_expenses,
-            'num_checked_byepc': checked_positions_expensesbyepc,
-            'num_checked_sort': checked_positions_sort,
-            'num_checked_sort_2': checked_positions_sort_2,
+            'num_records': expenses_count_dict.get(summary_id, {}).get('total_expenses', 0),
+            'num_records_TX': expenses_by_epc_dict.get(summary_id, {}).get('related_positions', 0),
+            'num_checked': expenses_count_dict.get(summary_id, {}).get('checked_positions_expenses', 0),
+            'num_checked_byepc': expenses_by_epc_dict.get(summary_id, {}).get('checked_positions_expensesbyepc', 0),
+            'num_checked_sort': estimate_sort_dict.get(summary_id, {}).get('checked_positions_sort', 0),
+            'num_checked_sort_2': estimate_sort_2_dict.get(summary_id, {}).get('checked_positions_sort_2', 0),
         })
 
-    context = {
-        'projects': project_data,
-    }
-
+    context = {'projects': project_data}
     return render(request, 'object_anlog_2.html', context)
 
 # Содержание Объекта аналога

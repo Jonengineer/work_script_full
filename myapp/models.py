@@ -157,7 +157,7 @@ class InvestProject(models.Model):
 
 class Object(models.Model):
     object_id = models.AutoField(primary_key=True)  # SERIAL, основной ключ
-    invest_project = models.ForeignKey('InvestProject', on_delete=models.CASCADE)  # Связь с моделью InvestProject
+    invest_project = models.ForeignKey('InvestProject', on_delete=models.CASCADE, db_index=True)  # Связь с моделью InvestProject
     object_type_id = models.IntegerField()  # DictKey, не может быть null
     dict_region_id = models.IntegerField(null=True)  # DictKey, может быть null
     dict_work_type_id = models.IntegerField()  # DictKey, не может быть null
@@ -181,7 +181,7 @@ class Object(models.Model):
 
 class EpcCalculation(models.Model):
     epc_calculation_ind = models.AutoField(primary_key=True)  # SERIAL, основной ключ
-    object_id = models.ForeignKey('Object', on_delete=models.CASCADE, related_name='epc_calculations', null=True)  # Внешний ключ на Object, может быть null
+    object_id = models.ForeignKey('Object', on_delete=models.CASCADE, related_name='epc_calculations', null=True, db_index=True)  # Внешний ключ на Object, может быть null
     epc_calculation_mrid = models.UUIDField()  # UUIDDomain, not null
     epc_calculation_before_ded = models.BooleanField()  # Flag, not null
     epc_calculation_link_ptk = models.TextField(null=True)  # TEXT, может быть null
@@ -206,14 +206,14 @@ class AtypicalExpenses(models.Model):
 
 class EpcCosts(models.Model):
     epc_costs_id = models.AutoField(primary_key=True)  # SERIAL, основной ключ
-    epc_calculation_ind = models.ForeignKey('EpcCalculation', on_delete=models.CASCADE, null=True)  # Внешний ключ на EpcCalculation, может быть null
+    epc_calculation_ind = models.ForeignKey('EpcCalculation', on_delete=models.CASCADE, null=True, db_index=True)  # Внешний ключ на EpcCalculation, может быть null
     dict_cost_epc_id = models.IntegerField(null=True)  # DictKey, идентификатор расценки УНЦ
     dict_cost_epc_table_id = models.IntegerField(null=True)  # DictKey, идентификатор таблицы УНЦ
     equipment_parameter_id = models.IntegerField(null=True)  # INT4, идентификатор оборудования
     epc_costs_id_name = models.CharField(max_length=2055, null=True)  # NameDomain, может быть null
     epc_costs_description = models.TextField(null=True, blank=True)  # LONG_NAME, может быть null
     epc_costs_checked = models.BooleanField(default=False, verbose_name="Проверено")  # Flag, может быть null
-    object = models.ForeignKey('Object', on_delete=models.CASCADE)  # Связь с моделью Object
+    object = models.ForeignKey('Object', on_delete=models.CASCADE, db_index=True)  # Связь с моделью Object
     name_object = models.TextField()
     voltage = models.TextField()
     TX = models.TextField()
@@ -231,10 +231,10 @@ class EpcCosts(models.Model):
 
 class ExpensesByEpc(models.Model):
     expenses_by_epc_id = models.AutoField(primary_key=True)  # SERIAL, основной ключ
-    epc_costs_id = models.ForeignKey('EpcCosts', on_delete=models.CASCADE)  # Внешний ключ на EpcCosts, не может быть null
+    epc_costs_id = models.ForeignKey('EpcCosts', on_delete=models.CASCADE, db_index=True)  # Внешний ключ на EpcCosts, не может быть null
     dict_typical_epc_work_id = models.IntegerField(null=True)  # DictKey, может быть null
     dict_budgeting_id = models.IntegerField(null=True)  # DictKey, может быть null
-    expense_id = models.ForeignKey('Expenses', on_delete=models.CASCADE)  # Внешний ключ на Expenses, не может быть null
+    expense_id = models.ForeignKey('Expenses', on_delete=models.CASCADE, related_name='expensesbyepc', db_index=True)
     expenses_to_epc_map_id = models.ForeignKey('ExpensesToEpcMap', on_delete=models.CASCADE)  # Внешний ключ на ExpensesToEpcMap, не может быть null
     expenses_by_epc_nme = models.CharField(max_length=2055, null=True)  # NameDomain, может быть null
     expenses_by_epc_descr = models.TextField(null=True, blank=True)  # LONG_NAME, может быть null
@@ -251,7 +251,7 @@ class ExpensesByEpc(models.Model):
 
 class SummaryEstimateCalculation(models.Model):
     summary_estimate_calculation_id = models.AutoField(primary_key=True)  # SERIAL, основной ключ
-    invest_project_id = models.ForeignKey('InvestProject', on_delete=models.CASCADE, null=True)  # Может быть null, согласно SQL-схеме
+    invest_project_id = models.ForeignKey('InvestProject', on_delete=models.CASCADE, null=True, db_index=True)  # Может быть null, согласно SQL-схеме
     sum_est_calc_mrid = models.UUIDField()  # UUIDDomain, обязательное поле
     sum_est_calc_before_ded = models.BooleanField()  # Flag, обязательное поле
 
@@ -265,7 +265,7 @@ class SummaryEstimateCalculation(models.Model):
 
 class ObjectCostEstimate(models.Model):
     object_cost_estimate_id = models.AutoField(primary_key=True)  # SERIAL, основной ключ
-    summary_estimate_calculation_id = models.ForeignKey('SummaryEstimateCalculation', on_delete=models.CASCADE, null=True)  # Может быть null, согласно SQL-схеме
+    summary_estimate_calculation_id = models.ForeignKey('SummaryEstimateCalculation', on_delete=models.CASCADE, null=True, db_index=True)  # Может быть null, согласно SQL-схеме
     object_cost_estimate_code = models.CharField(max_length=255)
 
     class Meta:
@@ -278,8 +278,8 @@ class ObjectCostEstimate(models.Model):
 
 class LocalCostEstimate(models.Model):
     local_cost_estimate_id = models.AutoField(primary_key=True)  # SERIAL, основной ключ
-    object_cost_estimate_id = models.ForeignKey('ObjectCostEstimate', on_delete=models.CASCADE, null=True, blank=True)  # Может быть null
-    summary_estimate_calculation_id = models.ForeignKey('SummaryEstimateCalculation', on_delete=models.CASCADE, null=True)  # Может быть null
+    object_cost_estimate_id = models.ForeignKey('ObjectCostEstimate', on_delete=models.CASCADE, null=True, blank=True, db_index=True)  # Может быть null
+    summary_estimate_calculation_id = models.ForeignKey('SummaryEstimateCalculation', on_delete=models.CASCADE, null=True, db_index=True)  # Может быть null
     local_cost_estimate_code = models.CharField(max_length=255)
 
     class Meta:
@@ -306,7 +306,7 @@ class LocalEstimateData(models.Model):
 
 class LocalEstimateDataSort_2(models.Model):
     sort_local_estimate_id = models.AutoField(primary_key=True)  # Основной ключ
-    local_cost_estimate = models.ForeignKey('LocalCostEstimate', on_delete=models.CASCADE, related_name='estimate_sort_data')  # Связь с локальной сметой
+    local_cost_estimate = models.ForeignKey('LocalCostEstimate', on_delete=models.CASCADE, related_name='estimate_sort_data', db_index=True)  # Связь с локальной сметой
     local_estimate_data_code = models.TextField(null=True)
     local_estimate_data_part = models.TextField(null=True)
     local_estimate_data_name = models.TextField(null=True)
@@ -333,7 +333,7 @@ class LocalEstimateDataSort_2(models.Model):
 
 class LocalEstimateDataSort(models.Model):
     sort_local_estimate_id = models.AutoField(primary_key=True)  # Основной ключ
-    local_cost_estimate = models.ForeignKey('LocalCostEstimate', on_delete=models.CASCADE, related_name='estimate_sort_data_2')  # Связь с локальной сметой
+    local_cost_estimate = models.ForeignKey('LocalCostEstimate', on_delete=models.CASCADE, related_name='estimate_sort_data_2', db_index=True)  # Связь с локальной сметой
     local_estimate_data_code = models.TextField(null=True)
     local_estimate_data_part = models.TextField(null=True)
     local_estimate_data_name = models.TextField(null=True)
@@ -355,9 +355,9 @@ class LocalEstimateDataSort(models.Model):
 
 class Expenses(models.Model):
     expense_id = models.AutoField(primary_key=True)  # SERIAL, основной ключ
-    local_cost_estimate_id = models.ForeignKey('LocalCostEstimate', on_delete=models.CASCADE, null=True, blank=True)  # Может быть null
-    object_cost_estimate_id = models.ForeignKey('ObjectCostEstimate', on_delete=models.CASCADE, null=True, blank=True)  # Может быть null
-    summary_estimate_calculation_id = models.ForeignKey('SummaryEstimateCalculation', on_delete=models.CASCADE, null=True)  # Может быть null
+    local_cost_estimate_id = models.ForeignKey('LocalCostEstimate', on_delete=models.CASCADE, null=True, blank=True, db_index=True)  # Может быть null
+    object_cost_estimate_id = models.ForeignKey('ObjectCostEstimate', on_delete=models.CASCADE, null=True, blank=True, db_index=True)  # Может быть null
+    summary_estimate_calculation_id = models.ForeignKey('SummaryEstimateCalculation', on_delete=models.CASCADE, null=True, related_name='expenses', db_index=True)  # Может быть null
     dict_expenditure_id = models.IntegerField(null=True)  # DictKey, может быть null
     dict_sec_chapter_id = models.ForeignKey('DictSecChapter', on_delete=models.CASCADE, null=True)  # DictKey, может быть null
     expense_value = models.DecimalField(max_digits=20, decimal_places=2, null=True)  # Price
@@ -369,8 +369,8 @@ class Expenses(models.Model):
     expense_other_cost = models.DecimalField(max_digits=20, decimal_places=2, null=True, blank=True, verbose_name="Стоимость прочих затрат")  # Price
     expense_total = models.DecimalField(max_digits=20, decimal_places=2, null=True, blank=True, verbose_name="Общая сметная стоимость")  # Price
     expense_description = models.TextField(null=True, blank=True)  # LONG_NAME, может быть null
-    expense_checked = models.BooleanField(default=False, verbose_name="Проверено", null=True, blank=True)  # Flag
-    expense_total_name = models.TextField(null=True)
+    expense_checked = models.BooleanField(default=False, verbose_name="Проверено", null=True, blank=True, db_index=True)  # Flag
+
 
     class Meta:
         db_table = 'expenses'
